@@ -8,16 +8,16 @@ Photon uses the **self-text paradigm**: you send an iMessage to yourself describ
 
 ## Features
 
-- **Deterministic time parsing** — chrono-node extracts dates and times before the LLM is consulted, with timezone-aware defaults
+- **Deterministic time parsing**: chrono-node extracts dates and times before the LLM is consulted, with timezone-aware defaults
 - **Multi-thread conversation sessions** — follow-up replies stay attached to the right task; multiple unresolved threads tracked simultaneously
-- **Rule-first dispatcher** — greetings, edits, cancels, done confirmations, and multi-task splitting are all handled deterministically before the LLM
-- **Smart reminder scheduling** — short-horizon tasks are reminded at due time instead of in the past
-- **Status lifecycle** — Pending → In Progress → Done / Not Confirmed / Canceled
-- **15-minute grace period** — overdue tasks stay active briefly before moving to Not Confirmed
-- **10 PM end-of-day summary** — unresolved Not Confirmed tasks summarized once at end of day
-- **Edit, reschedule, and cancel via text** — natural follow-ups like "actually make that 9" or "cancel that"
-- **Multi-task splitting** — "buy milk at 7 and call mom at 6" creates two separate tasks
-- **Web dashboard** — priority-ordered task view, manual controls, status filtering, time grouping, and auto-refreshing logs
+- **Rule-first dispatcher**: greetings, edits, cancels, done confirmations, and multi-task splitting are all handled deterministically before the LLM
+- **Smart reminder scheduling**: short-horizon tasks are reminded at due time instead of in the past
+- **Status lifecycle**: Pending → In Progress → Done / Not Confirmed / Canceled
+- **15-minute grace period**: overdue tasks stay active briefly before moving to Not Confirmed
+- **10 PM end-of-day summary**: unresolved Not Confirmed tasks summarized once at end of day
+- **Edit, reschedule, and cancel via text**: natural follow-ups like "actually make that 9" or "cancel that"
+- **Multi-task splitting**: "buy milk at 7 and call mom at 6" creates two separate tasks
+- **Web dashboard**: priority-ordered task view, manual controls, status filtering, time grouping, and auto-refreshing logs
 
 ## Architecture
 
@@ -40,21 +40,21 @@ photon2/
 
 **Key technologies:**
 
-- **TypeScript** — agent and web are both TypeScript
-- **Photon iMessage Kit** — watches macOS `chat.db` for new messages and sends replies
+- **TypeScript**: agent and web are both TypeScript
+- **Photon iMessage Kit**: watches macOS `chat.db` for new messages and sends replies
 - **Ollama** — local LLM inference (default model: `llama3.2:3b`) for intent classification fallback
-- **chrono-node** — deterministic date/time parsing
-- **Supabase** — PostgreSQL database with Row Level Security
-- **Next.js 14** — server-rendered dashboard with App Router
-- **Tailwind CSS** — utility-first styling
-- **Radix UI** — accessible UI primitives (Dialog, Select, Tabs)
+- **chrono-node**: deterministic date/time parsing
+- **Supabase**: PostgreSQL database with Row Level Security
+- **Next.js 14**: server-rendered dashboard with App Router
+- **Tailwind CSS**: utility-first styling
+- **Radix UI**: accessible UI primitives (Dialog, Select, Tabs)
 
 ## Prerequisites
 
-- **macOS** — iMessage requires `chat.db` access (grant Full Disk Access to your terminal)
+- **macOS**: iMessage requires `chat.db` access (grant Full Disk Access to your terminal)
 - **Node.js 18+**
 - **Ollama** with a model installed (default: `llama3.2:3b`)
-- **Supabase account** — free tier works
+- **Supabase account**: free tier works
 
 ## Setup
 
