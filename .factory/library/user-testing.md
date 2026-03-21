@@ -59,3 +59,89 @@ The backend agent cannot be tested via iMessage automation (it would send real m
 - Do NOT modify any test files or source code
 - Do NOT run the agent process (sends real iMessages)
 - Test runs are side-effect-free (all mocked)
+
+## Testing Surface: Web Dashboard (Milestone 2: web-dashboard)
+
+The web dashboard is tested via **agent-browser** navigating the Next.js app on `http://localhost:3000`.
+
+### Prerequisites
+- **CRITICAL**: `web/.env.local` must exist with `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` set. Without these, all data-driven pages show "Supabase configuration is missing" error.
+- The `.env.local` file is gitignored and must be created manually.
+- All pages are publicly accessible (no auth gate).
+
+### Testing Tool
+- **agent-browser** CLI for browser automation
+- Next.js dev server: `cd web && PORT=3000 npx next dev --port 3000`
+- Port 3000 must be free before starting
+
+### Pages and Routes
+| Route | Page | Component |
+|-------|------|-----------|
+| `/` | Dashboard (home) | `dashboard-client.tsx` |
+| `/todos` | Todos list | `todo-board.tsx` + `todo-card.tsx` |
+| `/logs` | Messages/Logs | `logs/page.tsx` |
+| `/settings` | Settings | `settings/page.tsx` |
+| `/demo` | Status Badge Demo | `demo/page.tsx` (no Supabase needed) |
+
+### Setup Steps
+1. Kill existing port 3000: `lsof -ti :3000 | xargs kill 2>/dev/null`
+2. Install deps: `cd web && npm install`
+3. Start dev server: `cd web && PORT=3000 npx next dev --port 3000` (background)
+4. Wait for health: `curl -sf http://localhost:3000`
+5. Seed test data via Supabase client (requires env vars)
+
+### Seed Data Requirements
+To test all assertions, you need todos with these statuses:
+- `pending` tasks due today (various times)
+- `in_progress` task with `due_at` 5-10 minutes in the past (overdue active)
+- `in_progress` task with `due_at` in the future (normal)
+- `done` task with `completed_at` today
+- `not_confirmed` task
+- `canceled` task with `canceled_at` set
+- Tasks from last week (for time grouping tests)
+- Message logs with both `inbound` and `outbound` directions
+
+### Known Issues (Round 1)
+- `.env.local` was missing, blocking 18 of 24 assertions
+- The demo page at `/demo` works without Supabase and can validate badge assertions
+- Error handling works correctly on all pages (shows user-visible error, not silent failure)
+
+## Validation Concurrency
+
+**Surface: Web Browser (agent-browser)**
+- Max concurrent validators: **3** (Next.js dev server ~830MB + agent-browser ~400MB per instance)
+- Validators share the same Supabase database — need data isolation via separate user accounts or unique task names
+- Browser sessions should use unique session names per subagent
+
+## Flow Validator Guidance: Web Browser
+
+### How to validate assertions
+1. Start agent-browser session: `agent-browser --session "<name>" open http://localhost:3000`
+2. Navigate to the relevant page
+3. Use `snapshot -i` to find interactive elements
+4. Use `screenshot` for visual evidence
+5. Interact with elements (click, fill, etc.) to test functionality
+6. Check console errors: `agent-browser errors`
+7. Close session when done: `agent-browser --session "<name>" close`
+
+### Assertion validation criteria
+- **pass**: The UI behavior matches the assertion description, confirmed via screenshot and interaction
+- **fail**: The UI behavior does not match (wrong ordering, missing elements, broken interaction)
+- **blocked**: Page cannot load due to missing dependencies (e.g., no Supabase credentials)
+
+### Data testid attributes
+The codebase uses `data-testid` attributes for reliable element targeting:
+- `stat-cards`, `stat-pending`, `stat-in-progress`, `stat-done-today`, `stat-total-tasks`
+- `not-confirmed-section`, `overdue-section`, `today-section`
+- `empty-state`, `task-card`, `todo-card`
+- `status-filter-tabs`, `filter-tab-all`, `filter-tab-pending`, etc.
+- `time-group-tabs`, `time-group-today`, `time-group-this_week`, `time-group-all`
+- `edit-button`, `reschedule-button`, `cancel-button`, `done-button`
+- `edit-dialog`, `reschedule-dialog`, `cancel-dialog`
+- `message-bubble`, `error-message`, `polling-toggle`, `refresh-button`
+
+### Isolation rules
+- Do NOT modify source code or env files
+- Do NOT start the agent process (sends real iMessages)
+- Each subagent should use a unique browser session name
+- Seed data should use unique identifiers to avoid cross-contamination

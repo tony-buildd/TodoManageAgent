@@ -1,0 +1,50 @@
+{
+  "milestone": "web-dashboard",
+  "round": 1,
+  "status": "fail",
+  "assertionsSummary": {
+    "total": 24,
+    "passed": 6,
+    "failed": 0,
+    "blocked": 18
+  },
+  "passedAssertions": [
+    "VAL-BADGE-001",
+    "VAL-BADGE-002",
+    "VAL-STATUS-004",
+    "VAL-CROSS-002",
+    "VAL-CROSS-003",
+    "VAL-LOG-003"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [
+    { "id": "VAL-HOME-001", "blockedBy": "Supabase credentials missing (web/.env.local does not exist)" },
+    { "id": "VAL-HOME-002", "blockedBy": "Supabase credentials missing (web/.env.local does not exist)" },
+    { "id": "VAL-HOME-003", "blockedBy": "Supabase credentials missing (web/.env.local does not exist)" },
+    { "id": "VAL-HOME-004", "blockedBy": "Supabase credentials missing (web/.env.local does not exist)" },
+    { "id": "VAL-HOME-005", "blockedBy": "Supabase credentials missing (web/.env.local does not exist)" },
+    { "id": "VAL-TODO-001", "blockedBy": "Supabase credentials missing (web/.env.local does not exist)" },
+    { "id": "VAL-TODO-002", "blockedBy": "Supabase credentials missing (web/.env.local does not exist)" },
+    { "id": "VAL-TODO-003", "blockedBy": "Supabase credentials missing (web/.env.local does not exist)" },
+    { "id": "VAL-TODO-004", "blockedBy": "Supabase credentials missing (web/.env.local does not exist)" },
+    { "id": "VAL-TODO-005", "blockedBy": "Supabase credentials missing (web/.env.local does not exist)" },
+    { "id": "VAL-CTRL-001", "blockedBy": "Supabase credentials missing (web/.env.local does not exist)" },
+    { "id": "VAL-CTRL-002", "blockedBy": "Supabase credentials missing (web/.env.local does not exist)" },
+    { "id": "VAL-CTRL-003", "blockedBy": "Supabase credentials missing (web/.env.local does not exist)" },
+    { "id": "VAL-CTRL-004", "blockedBy": "Supabase credentials missing (web/.env.local does not exist)" },
+    { "id": "VAL-CTRL-005", "blockedBy": "Supabase credentials missing (web/.env.local does not exist)" },
+    { "id": "VAL-LOG-001", "blockedBy": "Supabase credentials missing (web/.env.local does not exist)" },
+    { "id": "VAL-LOG-002", "blockedBy": "Supabase credentials missing (web/.env.local does not exist)" },
+    { "id": "VAL-LOG-004", "blockedBy": "Supabase credentials missing (web/.env.local does not exist)" },
+    { "id": "VAL-CROSS-001", "blockedBy": "Supabase credentials missing (web/.env.local does not exist)" },
+    { "id": "VAL-CROSS-004", "blockedBy": "Supabase credentials missing (web/.env.local does not exist)" }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Added web dashboard testing surface documentation including Flow Validator Guidance for web browser testing",
+      "source": "setup"
+    }
+  ],
+  "previousRound": null
+}
