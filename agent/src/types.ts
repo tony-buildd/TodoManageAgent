@@ -77,3 +77,13 @@ export interface MessageLog {
   raw_message: string;
   created_at: string;
 }
+
+/**
+ * Result from the deterministic time parser (chrono-node).
+ */
+export interface ParseTimeResult {
+  /** Parsed date/time, or null if no date/time was found. */
+  date: Date | null;
+  /** The input text with all date/time fragments removed. */
+  taskText: string;
+}
