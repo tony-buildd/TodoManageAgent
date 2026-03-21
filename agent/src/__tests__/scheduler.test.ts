@@ -453,6 +453,9 @@ describe('scheduler - checkEodSummary', () => {
     expect(msg).toContain('2 unresolved tasks');
     expect(msg).toContain('get food');
     expect(msg).toContain('call mom');
+    // Verify due times are included in the summary
+    expect(msg).toContain('was due');
+    expect(msg).toContain('Reply "done [task]" to mark them complete.');
   });
 
   it('no summary when zero not_confirmed tasks (VAL-EOD-002)', async () => {
@@ -549,6 +552,7 @@ describe('scheduler - checkEodSummary', () => {
     const msg = (sendMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
     expect(msg).toContain('buy groceries');
     expect(msg).toContain('1 unresolved task');
+    expect(msg).toContain('was due');
     expect(msg).toContain('Reply "done [task]" to mark them complete.');
   });
 });
