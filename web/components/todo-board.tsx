@@ -329,7 +329,7 @@ export default function TodoBoard() {
       ) : (
         <div className="space-y-2" data-testid="todo-list">
           {filteredTodos.map((todo) => (
-            <TodoCard key={todo.id} todo={todo} />
+            <TodoCard key={todo.id} todo={todo} onMutate={fetchTodos} />
           ))}
         </div>
       )}
