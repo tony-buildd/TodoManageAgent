@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Todo } from '@/lib/types';
+import { getUserTimezone } from '@/lib/timezone';
 import { StatusBadge, isOverdueActive } from '@/components/status-badge';
 
 /** Maximum number of tasks to display on the dashboard. */
@@ -18,14 +19,7 @@ function getSupabaseClient() {
   return createClient(url, key);
 }
 
-/** User timezone — defaults to browser timezone. */
-function getUserTimezone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone;
-  } catch {
-    return 'America/Los_Angeles';
-  }
-}
+
 
 /** Get the start and end of today in the user's timezone as UTC ISO strings. */
 function getTodayRange(timezone: string): { start: string; end: string } {
@@ -44,18 +38,15 @@ function getTodayRange(timezone: string): { start: string; end: string } {
   return { start: startUTC, end: endUTC };
 }
 
-/** Convert a local date/time in a timezone to a UTC ISO string. */
-function localToUTC(dateStr: string, timeStr: string, timezone: string): string {
-  const localDate = new Date(`${dateStr}T${timeStr}`);
-  const utcDate = new Date(
-    localDate.toLocaleString('en-US', { timeZone: 'UTC' })
-  );
-  const tzDate = new Date(
-    localDate.toLocaleString('en-US', { timeZone: timezone })
-  );
-  const offset = utcDate.getTime() - tzDate.getTime();
-
-  return new Date(localDate.getTime() + offset).toISOString();
+/**
+ * Convert a local date/time in a timezone to a UTC ISO string.
+ *
+ * `new Date('YYYY-MM-DDThh:mm:ss')` (no Z suffix) already parses as
+ * browser-local time, and the browser timezone equals the target timezone,
+ * so `.toISOString()` gives the correct UTC equivalent directly.
+ */
+function localToUTC(dateStr: string, timeStr: string, _timezone: string): string {
+  return new Date(`${dateStr}T${timeStr}`).toISOString();
 }
 
 interface StatCard {

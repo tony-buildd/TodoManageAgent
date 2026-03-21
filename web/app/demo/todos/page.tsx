@@ -7,20 +7,9 @@
 
 import { useState, useMemo } from 'react';
 import { Todo, TodoStatus } from '@/lib/types';
+import { getUserTimezone } from '@/lib/timezone';
 import { TodoCard } from '@/components/todo-card';
 import { isOverdueActive } from '@/components/status-badge';
-
-// ---------------------------------------------------------------------------
-// Timezone helpers (duplicated from todo-board for demo isolation)
-// ---------------------------------------------------------------------------
-
-function getUserTimezone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone;
-  } catch {
-    return 'America/Los_Angeles';
-  }
-}
 
 function getTodayStr(timezone: string): string {
   const formatter = new Intl.DateTimeFormat('en-CA', {
@@ -52,23 +41,11 @@ function getCurrentWeekBounds(timezone: string): { monday: string; sunday: strin
 
 function dayBoundsUTC(
   dateStr: string,
-  timezone: string,
+  _timezone: string,
 ): { start: string; end: string } {
-  const startLocal = new Date(`${dateStr}T00:00:00`);
-  const endLocal = new Date(`${dateStr}T23:59:59.999`);
-  const offsetMs = getTimezoneOffsetMs(timezone);
-  const startUTC = new Date(startLocal.getTime() + offsetMs);
-  const endUTC = new Date(endLocal.getTime() + offsetMs);
-  return { start: startUTC.toISOString(), end: endUTC.toISOString() };
-}
-
-function getTimezoneOffsetMs(timezone: string): number {
-  const now = new Date();
-  const utcStr = now.toLocaleString('en-US', { timeZone: 'UTC' });
-  const tzStr = now.toLocaleString('en-US', { timeZone: timezone });
-  const utcDate = new Date(utcStr);
-  const tzDate = new Date(tzStr);
-  return utcDate.getTime() - tzDate.getTime();
+  const startUTC = new Date(`${dateStr}T00:00:00`).toISOString();
+  const endUTC = new Date(`${dateStr}T23:59:59.999`).toISOString();
+  return { start: startUTC, end: endUTC };
 }
 
 // ---------------------------------------------------------------------------

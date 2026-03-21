@@ -12,6 +12,7 @@
 import React, { useState, useCallback } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Todo } from '@/lib/types';
+import { getUserTimezone } from '@/lib/timezone';
 import { StatusBadge, isOverdueActive } from '@/components/status-badge';
 import {
   editTaskText,
@@ -19,19 +20,6 @@ import {
   cancelTodo,
   markTodoDone,
 } from '@/lib/todo-actions';
-
-// ---------------------------------------------------------------------------
-// Timezone helpers
-// ---------------------------------------------------------------------------
-
-/** User timezone — defaults to browser timezone. */
-function getUserTimezone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone;
-  } catch {
-    return 'America/Los_Angeles';
-  }
-}
 
 /** Format a date string to a user-friendly due time display. */
 function formatDueTime(isoString: string): string {
@@ -94,23 +82,14 @@ function isoToDatetimeLocal(isoString: string): string {
 /**
  * Convert a datetime-local input value to a UTC ISO string,
  * interpreting the input in the user's timezone.
+ *
+ * `new Date('YYYY-MM-DDThh:mm:ss')` (no Z suffix) already parses as
+ * browser-local time, so `.toISOString()` gives the correct UTC directly.
  */
 function datetimeLocalToISO(localValue: string): string {
   // localValue is "YYYY-MM-DDTHH:mm"
   const [datePart, timePart] = localValue.split('T');
-  const localDate = new Date(`${datePart}T${timePart}:00`);
-
-  // Compute the timezone offset
-  const utcStr = localDate.toLocaleString('en-US', { timeZone: 'UTC' });
-  const tzStr = localDate.toLocaleString('en-US', {
-    timeZone: getUserTimezone(),
-  });
-
-  const utcDate = new Date(utcStr);
-  const tzDate = new Date(tzStr);
-  const offsetMs = utcDate.getTime() - tzDate.getTime();
-
-  return new Date(localDate.getTime() + offsetMs).toISOString();
+  return new Date(`${datePart}T${timePart}:00`).toISOString();
 }
 
 // ---------------------------------------------------------------------------

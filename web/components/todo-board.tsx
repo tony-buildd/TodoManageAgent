@@ -14,6 +14,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Todo, TodoStatus } from '@/lib/types';
+import { getUserTimezone } from '@/lib/timezone';
 import { TodoCard } from '@/components/todo-card';
 
 // ---------------------------------------------------------------------------
@@ -42,48 +43,23 @@ function getSupabaseClient(): SupabaseClient {
 // Timezone helpers
 // ---------------------------------------------------------------------------
 
-function getUserTimezone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone;
-  } catch {
-    return 'America/Los_Angeles';
-  }
-}
-
 /**
  * Get the start-of-day (00:00:00) and end-of-day (23:59:59.999) for a
  * given local date string (YYYY-MM-DD) in the user's timezone, returned
  * as UTC ISO strings suitable for Supabase comparison.
+ *
+ * `new Date('YYYY-MM-DDThh:mm:ss')` (no Z suffix) already parses as
+ * browser-local time, and the browser timezone equals the target timezone,
+ * so `.toISOString()` gives the correct UTC equivalent directly.
  */
 function dayBoundsUTC(
   dateStr: string,
-  timezone: string,
+  _timezone: string,
 ): { start: string; end: string } {
-  const startLocal = new Date(`${dateStr}T00:00:00`);
-  const endLocal = new Date(`${dateStr}T23:59:59.999`);
+  const startUTC = new Date(`${dateStr}T00:00:00`).toISOString();
+  const endUTC = new Date(`${dateStr}T23:59:59.999`).toISOString();
 
-  const offsetMs = getTimezoneOffsetMs(timezone);
-
-  const startUTC = new Date(startLocal.getTime() + offsetMs);
-  const endUTC = new Date(endLocal.getTime() + offsetMs);
-
-  return { start: startUTC.toISOString(), end: endUTC.toISOString() };
-}
-
-/**
- * Returns the offset (in ms) to add to a "pretend-UTC" Date to get true UTC,
- * given a target timezone.
- */
-function getTimezoneOffsetMs(timezone: string): number {
-  const now = new Date();
-
-  const utcStr = now.toLocaleString('en-US', { timeZone: 'UTC' });
-  const tzStr = now.toLocaleString('en-US', { timeZone: timezone });
-
-  const utcDate = new Date(utcStr);
-  const tzDate = new Date(tzStr);
-
-  return utcDate.getTime() - tzDate.getTime();
+  return { start: startUTC, end: endUTC };
 }
 
 /** Return today's date string (YYYY-MM-DD) in the user's timezone. */
