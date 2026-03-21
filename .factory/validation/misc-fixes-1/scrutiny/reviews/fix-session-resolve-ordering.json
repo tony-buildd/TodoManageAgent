@@ -1,0 +1,28 @@
+{
+  "featureId": "fix-session-resolve-ordering",
+  "reviewedAt": "2026-03-21T21:10:00.000Z",
+  "commitId": "9ae9dde",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The fix correctly swaps resolveSession ordering in handleDisambiguationReply. Previously, resolveSession() was called once before all action branches (cancel/done/edit), meaning if any DB action threw, the session was already resolved and the user couldn't retry. The fix moves resolveSession to after each individual DB action, so it's only called on success. The diff is minimal (9 lines in dispatcher.ts) and the intent is clear. Five well-structured tests verify call ordering for all three action paths and failure resilience for cancel and done paths.",
+    "issues": [
+      {
+        "file": "agent/src/__tests__/disambiguation-followup.test.ts",
+        "line": null,
+        "severity": "non_blocking",
+        "description": "Missing failure-resilience test for the edit (time update) path. Tests cover cancel and done failure cases but not the edit path where updateTodoDueAt throws. The code structure is identical so risk is minimal, but completeness would be improved by adding this test."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "Feature references skillName 'backend-worker' but .factory/skills/backend-worker/SKILL.md does not exist on disk. The skill may have been removed or relocated. Worker transcript shows 'mission-worker-base' skill was invoked instead, which is likely the correct base skill.",
+      "evidence": "features.json has skillName: 'backend-worker'; Glob for **/backend-worker/SKILL.md returned error 'Search directory does not exist'; transcript skeleton shows Skill invocation for 'mission-worker-base'."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The fix correctly reorders resolveSession after DB actions in handleDisambiguationReply, ensuring sessions remain active if the DB action fails. All three action paths (cancel, done, edit) are fixed with the same pattern. Five new tests verify ordering and failure resilience. Code is clean, minimal, and follows project conventions. One non-blocking gap: no failure test for the edit path."
+}
