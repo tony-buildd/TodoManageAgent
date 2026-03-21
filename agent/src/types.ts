@@ -33,7 +33,7 @@ export interface User {
   id: string;
   phone: string;
   timezone: string;
-  lead_minutes: number;
+  reminder_lead_minutes: number;
   created_at: string;
 }
 

@@ -23,7 +23,7 @@ export async function getOrCreateUser(
       {
         phone,
         timezone,
-        lead_minutes,
+        reminder_lead_minutes: lead_minutes,
       },
       {
         onConflict: 'phone',
