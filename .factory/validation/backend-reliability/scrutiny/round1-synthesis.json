@@ -1,0 +1,116 @@
+{
+  "milestone": "backend-reliability",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": { "passed": true, "command": "cd agent && npx vitest run", "exitCode": 0 },
+    "typecheck": { "passed": true, "command": "cd agent && npx tsc --noEmit", "exitCode": 0 },
+    "lint": { "passed": true, "command": "N/A — no lint command configured in services.yaml", "exitCode": 0 }
+  },
+  "reviewsSummary": {
+    "total": 9,
+    "passed": 8,
+    "failed": 1,
+    "failedFeatures": ["db-schema-migration"]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "db-schema-migration",
+      "severity": "blocking",
+      "description": "getOrCreateUser() uses `ignoreDuplicates: true` with `.select('*').single()` in agent/src/db.ts. PostgreSQL's ON CONFLICT DO NOTHING combined with RETURNING only returns newly inserted rows — for existing users, `.single()` will throw PGRST116 ('The result contains 0 rows'). Tests mask this because they mock Supabase to always return data. Fix: remove `ignoreDuplicates: true` (default false uses ON CONFLICT DO UPDATE SET which always returns the row), or use `.maybeSingle()` with a fallback select query."
+    }
+  ],
+  "nonBlockingIssues": [
+    {
+      "featureId": "status-lifecycle-scheduler",
+      "description": "Timezone bugs in getNotConfirmedToday (machine-timezone-dependent date bounds) and message time formatting (toLocaleTimeString missing timeZone option). Mitigated by single-user context where machine TZ ≈ user TZ."
+    },
+    {
+      "featureId": "status-lifecycle-scheduler",
+      "description": "Three lifecycle tests (VAL-STATUS-002, VAL-CHAT-002, VAL-STATUS-003) assert object literals rather than exercising production code. Actual behaviors are covered by dispatcher tests."
+    },
+    {
+      "featureId": "dispatcher-rewrite",
+      "description": "Dead code in ACK handling path (step h.5); UX concern with ack + multi-session disambiguation; some untested branches."
+    },
+    {
+      "featureId": "edit-cancel-flows",
+      "description": "Disambiguation follow-up handler not implemented — session is created on ambiguity but never consumed on user reply. User flow is incomplete for the ambiguous edit path."
+    },
+    {
+      "featureId": "edit-cancel-flows",
+      "description": "CANCEL_NAMED_RE fallback may cancel wrong task when the specified name doesn't match any task but exactly one task is active."
+    },
+    {
+      "featureId": "multi-task-chat-behavior",
+      "description": "Chatter handling logic expanded beyond spec (adding in_progress task awareness). Doesn't change observable behavior but adds unnecessary DB queries."
+    },
+    {
+      "featureId": "conversation-sessions",
+      "description": "expireOldSessions uses updated_at column for staleness but DB index is on last_inbound_at. Docstring says 'last_inbound_at (or updated_at as fallback)' but only updated_at is used."
+    },
+    {
+      "featureId": "edit-cancel-flows",
+      "description": "leadMinutes hardcoded to 30 in updateTodoDueAt instead of using user's configurable lead_minutes from User model. Consistent with rest of codebase."
+    },
+    {
+      "featureId": "eod-summary",
+      "description": "Module-level lastSummaryDate singleton works for single-user but would break with multiple users. Acceptable per architecture."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "library",
+      "description": "Added .factory/library/supabase-upsert-gotchas.md documenting that ignoreDuplicates:true does not return conflicting rows",
+      "sourceFeature": "db-schema-migration"
+    },
+    {
+      "target": "library",
+      "description": "Added .factory/library/chrono-node-patterns.md documenting bare number parsing, timezone offset format, AM/PM defaults, and reference date timezone usage",
+      "sourceFeature": "input-sanitization-parsing"
+    }
+  ],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add convention: All user-facing time formatting must pass the user's timezone to toLocaleTimeString/toLocaleDateString (e.g., `{ timeZone: userTimezone }`). Currently scheduler.ts and responder.ts format times without specifying timezone, relying on machine-local time.",
+      "evidence": "Features status-lifecycle-scheduler, edit-cancel-flows, and eod-summary all use toLocaleTimeString without timeZone option. Reviewers flagged this in 3 separate features.",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add note: The 'backend-worker' skill referenced in features.json does not exist. All 9 backend features' workers fell back to mission-worker-base. Either create the skill or update features.json to reference an existing skill.",
+      "evidence": "All 9 review reports note the missing backend-worker skill. Worker transcripts show 'Error: Skill \"backend-worker\" not found' across all features.",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Document the dispatcher pipeline step ordering (steps a-k) as a convention so future workers know the processing order: skip [PT] → sanitize → persist log → greeting → recurring rejection → load sessions → follow-up resolution → edit/cancel/done → new-task extraction → LLM fallback → ambiguity guard.",
+      "evidence": "Feature edit-cancel-flows review noted the pipeline is only documented in dispatcher.ts JSDoc, not in AGENTS.md. Multiple features modify the pipeline and need to know insertion points.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Worker created .factory/services.yaml from scratch in vitest-setup (it didn't exist before)",
+      "reason": "Not actionable — services.yaml already exists and is correct. The observation is historical context about feature ordering, not a current gap."
+    },
+    {
+      "observation": "AGENTS.md documents chrono-node as 'to be installed' but it's already installed",
+      "reason": "Already addressed — chrono-node was installed by input-sanitization-parsing feature. The 'to be installed' note in AGENTS.md is stale but harmless."
+    },
+    {
+      "observation": "No .factory/library/ directory exists (raised by dispatcher-rewrite and edit-cancel-flows reviews)",
+      "reason": "Addressed in this synthesis — library entries created for supabase-upsert-gotchas.md and chrono-node-patterns.md."
+    },
+    {
+      "observation": "Supabase mock pattern (chainable query builder) not documented (raised by conversation-sessions review)",
+      "reason": "Already well-implemented in helpers.ts and used consistently. Documenting internal test mock patterns has low value — the pattern is self-evident from existing test files."
+    },
+    {
+      "observation": "tsconfig types convention gap — adding 'node' to project-wide tsconfig vs separate test tsconfig",
+      "reason": "Minor convention detail. The agent runs on Node.js so having @types/node in scope is correct. No action needed."
+    }
+  ],
+  "previousRound": null
+}

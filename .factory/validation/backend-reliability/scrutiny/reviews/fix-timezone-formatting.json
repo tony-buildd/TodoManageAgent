@@ -1,0 +1,21 @@
+{
+  "featureId": "fix-timezone-formatting",
+  "reviewedAt": "2026-03-21T10:05:00.000Z",
+  "commitId": "80fcb98",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "All 5 user-facing time formatting calls across scheduler.ts (2 locations) and responder.ts (3 locations) now include { timeZone: deps.userTimezone }. The ResponderDeps interface was extended with userTimezone and dispatcher.ts correctly passes it through. The 2 toLocaleString calls in db.ts already had explicit timeZone parameters (UTC and user timezone) for offset computation and are not user-facing, so they were correctly left unchanged. 10 new tests verify timezone-aware formatting across 3 timezones (LA, NYC, London), confirming that times display in the user's configured timezone rather than machine-local time. Implementation is clean, minimal, and complete.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "All user-facing time formatting now consistently uses { timeZone: userTimezone }. AGENTS.md could benefit from documenting this convention to prevent future regressions: 'All toLocaleTimeString/toLocaleDateString calls for user-facing messages must include { timeZone: userTimezone } — never rely on machine-local time.'",
+      "evidence": "scheduler.ts:104,231 and responder.ts:54,75,81 all now include timeZone. This pattern was the root cause of this fix feature and could recur if new formatting calls are added without the option."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Pass. The fix correctly adds { timeZone: deps.userTimezone } to all 5 toLocaleTimeString/toLocaleDateString calls in scheduler.ts and responder.ts. The ResponderDeps interface was properly extended and dispatcher.ts plumbs the timezone through. 10 comprehensive tests across 3 timezones verify the fix. No remaining time formatting calls lack the timezone option. No bugs or edge cases found."
+}

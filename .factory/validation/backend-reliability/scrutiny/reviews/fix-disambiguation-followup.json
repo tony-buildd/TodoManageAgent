@@ -1,0 +1,39 @@
+{
+  "featureId": "fix-disambiguation-followup",
+  "reviewedAt": "2026-03-21T10:04:00.000Z",
+  "commitId": "114b83f",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Implementation is solid and complete. The worker added handleDisambiguationReply() and matchDisambiguationReply() to dispatcher.ts, handling user replies to disambiguation prompts via number selection, exact name match, and fuzzy/partial match. All four disambiguation entry points (done, cancel, cancel-named, edit-time) now create sessions with candidate_todo_ids for robustness. The re-ask flow correctly keeps the session open when the reply is ambiguous. Tests are comprehensive with 31 new cases covering unit tests, integration flows (cancel/edit/done), re-ask behavior, and edge cases (no active tasks, null candidates, no LLM). All 306 tests pass, TypeScript compiles clean.",
+    "issues": [
+      {
+        "file": "agent/src/dispatcher.ts",
+        "line": 700,
+        "severity": "non_blocking",
+        "description": "resolveSession() is called before the action (markTodoCanceled/markTodoDone/updateTodoDueAt). If the subsequent DB operation throws, the session is already resolved and the user cannot retry the disambiguation. This is consistent with patterns elsewhere in the codebase (e.g., handleFollowUp for awaiting_time) so it's not a regression, but a potential robustness improvement for a future pass."
+      },
+      {
+        "file": "agent/src/dispatcher.ts",
+        "line": 774,
+        "severity": "non_blocking",
+        "description": "Fuzzy match includes a bidirectional check (reply in task name OR task name in reply). Very short task names like 'a' or 'go' would match almost any user reply. This is an unlikely edge case given the expected task naming patterns, but worth noting."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The done-with-multiple-tasks path previously had no session creation (just showed disambiguation prompt without creating awaiting_edit_target session). The worker correctly identified this gap and added session creation for the DONE_RE multi-task path. This pattern (session creation required for any disambiguation prompt) is not documented in AGENTS.md but is now an implicit convention across all disambiguation entry points.",
+      "evidence": "agent/src/dispatcher.ts:356-369 — new doneSession creation block added for DONE_RE multi-task path, paralleling existing pattern in CANCEL_RE (line 386) and EDIT_TIME_RE (line 506)"
+    },
+    {
+      "area": "skills",
+      "observation": "The feature references skillName 'backend-worker' but no skill file was found at .factory/skills/backend-worker/SKILL.md (the .factory/skills directory does not exist). Unable to verify skill procedure compliance. The worker invoked 'mission-worker-base' skill from the transcript.",
+      "evidence": "features.json has skillName: 'backend-worker'; Glob on .factory/skills returned 'Error: Search directory does not exist'"
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "The disambiguation follow-up handler implementation is correct and complete. It addresses the original non-blocking issue by adding end-to-end handling for awaiting_edit_target sessions: users can select tasks by number, name, or fuzzy match, and the original action (cancel/done/edit) is applied. The worker also fixed the DONE_RE multi-task path which was missing session creation. Two non-blocking issues noted: resolve-before-action ordering (consistent with existing patterns) and fuzzy match sensitivity to very short task names. All 306 tests pass, TypeScript compiles clean. Feature is ready."
+}
