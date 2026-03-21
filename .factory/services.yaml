@@ -1,0 +1,3 @@
+commands:
+  test: cd agent && npx vitest run
+  typecheck: cd agent && npx tsc --noEmit
