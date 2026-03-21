@@ -1,25 +1,11 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import { MessageLog } from '@/lib/types';
+import { getSupabaseClient } from '@/lib/supabase';
 
 /** Polling interval in milliseconds (10 seconds). */
 const POLL_INTERVAL_MS = 10_000;
-
-/** Lazily create the Supabase client on the client side only. */
-function getSupabaseClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !key) {
-    throw new Error(
-      'Supabase configuration is missing. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.',
-    );
-  }
-
-  return createClient(url, key);
-}
 
 /**
  * Format a created_at timestamp for display.

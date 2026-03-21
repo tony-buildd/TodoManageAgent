@@ -1,23 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import { Todo } from '@/lib/types';
+import { getSupabaseClient } from '@/lib/supabase';
 import { getUserTimezone } from '@/lib/timezone';
 import { StatusBadge, isOverdueActive } from '@/components/status-badge';
 
 /** Maximum number of tasks to display on the dashboard. */
 const MAX_DISPLAY_TASKS = 10;
-
-/** Lazily create the Supabase client on the client side only. */
-function getSupabaseClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) {
-    throw new Error('Supabase configuration is missing. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.');
-  }
-  return createClient(url, key);
-}
 
 
 

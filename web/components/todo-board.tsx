@@ -12,32 +12,10 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Todo, TodoStatus } from '@/lib/types';
+import { getSupabaseClient } from '@/lib/supabase';
 import { getUserTimezone } from '@/lib/timezone';
 import { TodoCard } from '@/components/todo-card';
-
-// ---------------------------------------------------------------------------
-// Supabase client (lazy, client-side only)
-// ---------------------------------------------------------------------------
-
-let cachedClient: SupabaseClient | null = null;
-
-function getSupabaseClient(): SupabaseClient {
-  if (cachedClient) return cachedClient;
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !key) {
-    throw new Error(
-      'Supabase configuration is missing. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.',
-    );
-  }
-
-  cachedClient = createClient(url, key);
-  return cachedClient;
-}
 
 // ---------------------------------------------------------------------------
 // Timezone helpers

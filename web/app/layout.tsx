@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -21,30 +22,30 @@ export default function RootLayout({
               Photon Todo
             </h1>
             <nav className="flex flex-col gap-1">
-              <a
+              <Link
                 href="/"
                 className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900"
               >
                 Dashboard
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/todos"
                 className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900"
               >
                 Todos
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/logs"
                 className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900"
               >
                 Messages
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/settings"
                 className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900"
               >
                 Settings
-              </a>
+              </Link>
             </nav>
           </aside>
 
