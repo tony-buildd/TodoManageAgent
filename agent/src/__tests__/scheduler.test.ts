@@ -654,3 +654,125 @@ describe('scheduler - resetLastSummaryDate', () => {
     expect(getLastSummaryDate()).toBeNull();
   });
 });
+
+describe('scheduler - timezone formatting in messages', () => {
+  beforeEach(() => {
+    resetLastSummaryDate();
+  });
+
+  it('reminder message formats time in user timezone, not UTC', async () => {
+    // 2025-03-21T03:50:00.000Z is 8:50 PM PDT (America/Los_Angeles)
+    // In UTC it would be 3:50 AM — so if we see 8:50 PM we know timezone is applied
+    const pendingTodo = makeTodo({
+      status: 'pending',
+      due_at: '2025-03-21T03:50:00.000Z',
+    });
+    const { client, sendMessage } = buildSchedulerMocks({
+      dueReminders: [pendingTodo],
+      freshStatus: 'pending',
+    });
+
+    const deps = makeDeps({
+      supabase: client,
+      sendMessage,
+      userTimezone: 'America/Los_Angeles',
+      now: () => new Date('2025-03-21T03:50:00.000Z'),
+    });
+
+    await sendDueReminders(deps);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const msg = (sendMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    // Should contain "8:50 PM" (PDT) not "3:50 AM" (UTC)
+    expect(msg).toContain('8:50 PM');
+    expect(msg).not.toContain('3:50 AM');
+  });
+
+  it('reminder message formats time correctly in a different timezone', async () => {
+    // 2025-03-21T03:50:00.000Z in America/New_York (EDT, UTC-4) = 11:50 PM
+    const pendingTodo = makeTodo({
+      status: 'pending',
+      due_at: '2025-03-21T03:50:00.000Z',
+    });
+    const { client, sendMessage } = buildSchedulerMocks({
+      dueReminders: [pendingTodo],
+      freshStatus: 'pending',
+    });
+
+    const deps = makeDeps({
+      supabase: client,
+      sendMessage,
+      userTimezone: 'America/New_York',
+      now: () => new Date('2025-03-21T03:50:00.000Z'),
+    });
+
+    await sendDueReminders(deps);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const msg = (sendMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    // Should contain "11:50 PM" (EDT) not "3:50 AM" (UTC) or "8:50 PM" (PDT)
+    expect(msg).toContain('11:50 PM');
+  });
+
+  it('EOD summary formats due times in user timezone', async () => {
+    const notConfirmedTodos = [
+      makeTodo({
+        id: 'todo-1',
+        task: 'get food',
+        status: 'not_confirmed',
+        not_confirmed_at: '2025-03-21T04:05:00.000Z',
+        due_at: '2025-03-21T03:50:00.000Z', // 8:50 PM PDT
+      }),
+    ];
+    const { client, sendMessage } = buildSchedulerMocks({
+      notConfirmedToday: notConfirmedTodos,
+    });
+
+    // 10:15 PM PDT = UTC 05:15 AM next day
+    const tenPmPdt = new Date('2025-03-21T05:15:00.000Z');
+
+    const deps = makeDeps({
+      supabase: client,
+      sendMessage,
+      userTimezone: 'America/Los_Angeles',
+      now: () => tenPmPdt,
+    });
+
+    await checkEodSummary(deps);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const msg = (sendMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    // Should show "8:50 PM" (PDT) not "3:50 AM" (UTC)
+    expect(msg).toContain('8:50 PM');
+    expect(msg).not.toContain('3:50 AM');
+  });
+
+  it('EOD summary formats due times in a different timezone', async () => {
+    const notConfirmedTodos = [
+      makeTodo({
+        id: 'todo-1',
+        task: 'buy groceries',
+        status: 'not_confirmed',
+        not_confirmed_at: '2025-03-21T04:05:00.000Z',
+        due_at: '2025-03-21T03:50:00.000Z', // 11:50 PM EDT (America/New_York)
+      }),
+    ];
+    const { client, sendMessage } = buildSchedulerMocks({
+      notConfirmedToday: notConfirmedTodos,
+    });
+
+    // 10:15 PM EDT = UTC 02:15 AM next day
+    const tenPmEdt = new Date('2025-03-21T02:15:00.000Z');
+
+    const deps = makeDeps({
+      supabase: client,
+      sendMessage,
+      userTimezone: 'America/New_York',
+      now: () => tenPmEdt,
+    });
+
+    await checkEodSummary(deps);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const msg = (sendMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    // Should show "11:50 PM" (EDT) not "3:50 AM" (UTC)
+    expect(msg).toContain('11:50 PM');
+    expect(msg).not.toContain('3:50 AM');
+  });
+});

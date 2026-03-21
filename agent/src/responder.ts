@@ -15,6 +15,7 @@ export interface ResponderDeps {
   supabase: SupabaseClient;
   sendMessage: (text: string) => Promise<void>;
   userId: string;
+  userTimezone: string;
 }
 
 /**
@@ -54,6 +55,7 @@ export async function respondTaskCreated(
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
+      timeZone: deps.userTimezone,
     });
     await deps.sendMessage(`Got it! I'll remind you to "${task}" at ${timeStr}.`);
   } else {
@@ -74,11 +76,13 @@ export async function respondTaskUpdated(
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+    timeZone: deps.userTimezone,
   });
   const dateStr = d.toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
+    timeZone: deps.userTimezone,
   });
   await deps.sendMessage(
     `Updated "${task}" to ${dateStr} at ${timeStr}.`,

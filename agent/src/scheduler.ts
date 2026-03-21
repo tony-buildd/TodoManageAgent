@@ -105,6 +105,7 @@ export async function sendDueReminders(deps: SchedulerDeps): Promise<number> {
           hour: 'numeric',
           minute: '2-digit',
           hour12: true,
+          timeZone: deps.userTimezone,
         })
       : 'soon';
     await deps.sendMessage(
@@ -231,6 +232,7 @@ export async function checkEodSummary(deps: SchedulerDeps): Promise<boolean> {
           hour: 'numeric',
           minute: '2-digit',
           hour12: true,
+          timeZone: deps.userTimezone,
         })
       : 'no time set';
     return `${i + 1}. ${t.task} (was due ${timeStr})`;

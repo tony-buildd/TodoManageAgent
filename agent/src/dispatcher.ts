@@ -286,6 +286,7 @@ export async function dispatch(
     supabase: deps.supabase,
     sendMessage: deps.sendMessage,
     userId: deps.userId,
+    userTimezone: deps.userTimezone,
   };
 
   // ── (a) Skip [PT] agent messages ─────────────────────────────────────
