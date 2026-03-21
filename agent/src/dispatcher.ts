@@ -21,8 +21,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ConversationSession, Todo } from './types.js';
 import { sanitizeInput } from './sanitize.js';
 import { parseTime } from './time-parser.js';
+import { calcRemindAt } from './db.js';
 import {
   getActiveSessions,
+  createSession,
   findSessionForReply,
   resolveSession,
   updateSession,
@@ -31,6 +33,7 @@ import {
   respondGreeting,
   respondRecurringUnsupported,
   respondTaskCreated,
+  respondTaskUpdated,
   respondFollowUp,
   respondDisambiguate,
   respondTaskDone,
@@ -67,16 +70,24 @@ const RECURRING_RE =
 const DONE_RE = /^(done|finished|complete|completed|i'?m\s+done)[\s!.]*$/i;
 
 /**
- * Matches cancel commands: "cancel that", "cancel [task name]", "nevermind", etc.
+ * Matches generic cancel commands: "cancel that", "cancel it", "nevermind", etc.
+ * Does NOT match "cancel [task name]" — that's handled separately.
  */
 const CANCEL_RE = /^(cancel\s+that|cancel\s+it|nevermind|never\s*mind)[\s!.]*$/i;
 
 /**
+ * Matches "cancel [task name]" where the task name is a specific reference.
+ * e.g. "cancel get food", "cancel call mom"
+ */
+const CANCEL_NAMED_RE = /^cancel\s+(.+)$/i;
+
+/**
  * Matches edit/reschedule commands.
- * "actually make that 9", "change it to 5pm", "not today tomorrow"
+ * "actually make that 9", "change it to 5pm", "not today tomorrow",
+ * "reschedule to 5pm", "reschedule to tomorrow"
  */
 const EDIT_TIME_RE =
-  /^(actually\s+)?make\s+(that|it)\s+(.+)$|^change\s+(it\s+)?to\s+(.+)$|^not\s+today[\s,]+(.+)$/i;
+  /^(actually\s+)?make\s+(that|it)\s+(.+)$|^change\s+(it\s+)?to\s+(.+)$|^not\s+today[\s,]+(.+)$|^reschedule\s+to\s+(.+)$/i;
 
 /**
  * Non-task chatter that should be silently ignored when no session is active.
@@ -231,16 +242,22 @@ async function markTodoCanceled(
 }
 
 /**
- * Update a todo's due_at.
+ * Update a todo's due_at and recalculate remind_at.
+ *
+ * Uses calcRemindAt to determine the new remind_at based on the
+ * updated due_at and a default 30-minute lead time.
  */
 async function updateTodoDueAt(
   supabase: SupabaseClient,
   todoId: string,
   dueAt: string,
+  leadMinutes: number = 30,
 ): Promise<void> {
+  const dueDate = new Date(dueAt);
+  const newRemindAt = calcRemindAt(dueDate, leadMinutes);
   await supabase
     .from('todos')
-    .update({ due_at: dueAt })
+    .update({ due_at: dueAt, remind_at: newRemindAt, status: 'pending' })
     .eq('id', todoId);
 }
 
@@ -345,7 +362,60 @@ export async function dispatch(
       await respondTaskCanceled(responderDeps, activeTodos[0].task);
       return { handled: true, action: 'edit_cancel_done' };
     }
-    // Multiple tasks — disambiguate
+    // Multiple tasks — create disambiguation session
+    await createSession(
+      deps.supabase,
+      deps.userId,
+      deps.chatKey,
+      null,
+      'awaiting_edit_target',
+      'cancel',
+    );
+    await respondDisambiguate(
+      responderDeps,
+      activeTodos.map((t) => t.task),
+    );
+    return { handled: true, action: 'edit_cancel_done' };
+  }
+
+  // "cancel [task name]" — try to match a named task
+  const cancelNamedMatch = CANCEL_NAMED_RE.exec(text);
+  if (cancelNamedMatch && !CANCEL_RE.test(text)) {
+    const taskName = cancelNamedMatch[1].trim().toLowerCase();
+    const activeTodos = await getActiveTodos(deps.supabase, deps.userId);
+
+    if (activeTodos.length === 0) {
+      await respondNoActiveTasks(responderDeps);
+      return { handled: true, action: 'edit_cancel_done' };
+    }
+
+    // Try to find a matching task by name
+    const matched = activeTodos.filter(
+      (t) => t.task.toLowerCase().includes(taskName) || taskName.includes(t.task.toLowerCase()),
+    );
+
+    if (matched.length === 1) {
+      await markTodoCanceled(deps.supabase, matched[0].id);
+      await respondTaskCanceled(responderDeps, matched[0].task);
+      return { handled: true, action: 'edit_cancel_done' };
+    }
+
+    if (matched.length === 0 && activeTodos.length === 1) {
+      // Only one active task, likely referring to it
+      await markTodoCanceled(deps.supabase, activeTodos[0].id);
+      await respondTaskCanceled(responderDeps, activeTodos[0].task);
+      return { handled: true, action: 'edit_cancel_done' };
+    }
+
+    // Multiple or no match with multiple tasks — disambiguate
+    await createSession(
+      deps.supabase,
+      deps.userId,
+      deps.chatKey,
+      null,
+      'awaiting_edit_target',
+      'cancel',
+    );
     await respondDisambiguate(
       responderDeps,
       activeTodos.map((t) => t.task),
@@ -356,7 +426,7 @@ export async function dispatch(
   const editMatch = EDIT_TIME_RE.exec(text);
   if (editMatch) {
     // Extract the time portion from whichever capture group matched
-    const newTimeText = editMatch[3] ?? editMatch[5] ?? editMatch[6] ?? '';
+    const rawTimeText = editMatch[3] ?? editMatch[5] ?? editMatch[6] ?? editMatch[7] ?? '';
     const activeTodos = await getActiveTodos(deps.supabase, deps.userId);
 
     if (activeTodos.length === 0) {
@@ -364,7 +434,31 @@ export async function dispatch(
       return { handled: true, action: 'edit_cancel_done' };
     }
 
-    if (activeTodos.length === 1 && newTimeText) {
+    if (activeTodos.length === 1 && rawTimeText) {
+      // Special handling for "not today, tomorrow" — shift date to tomorrow
+      // keeping the same time from the existing task
+      const isNotTodayTomorrow = /^not\s+today[\s,]+tomorrow\s*$/i.test(text);
+      if (isNotTodayTomorrow && activeTodos[0].due_at) {
+        const currentDue = new Date(activeTodos[0].due_at);
+        const shifted = new Date(currentDue.getTime() + 24 * 60 * 60 * 1000);
+        await updateTodoDueAt(
+          deps.supabase,
+          activeTodos[0].id,
+          shifted.toISOString(),
+        );
+        await respondTaskUpdated(
+          responderDeps,
+          activeTodos[0].task,
+          shifted.toISOString(),
+        );
+        return { handled: true, action: 'edit_cancel_done' };
+      }
+
+      // Normalize bare numbers like "9" to "at 9" so chrono-node recognizes them
+      const newTimeText = /^\d{1,2}$/.test(rawTimeText.trim())
+        ? `at ${rawTimeText.trim()}`
+        : rawTimeText;
+
       const parsed = parseTime(newTimeText, deps.userTimezone);
       if (parsed.date) {
         await updateTodoDueAt(
@@ -372,7 +466,7 @@ export async function dispatch(
           activeTodos[0].id,
           parsed.date.toISOString(),
         );
-        await respondTaskCreated(
+        await respondTaskUpdated(
           responderDeps,
           activeTodos[0].task,
           parsed.date.toISOString(),
@@ -382,6 +476,15 @@ export async function dispatch(
     }
 
     if (activeTodos.length > 1) {
+      // Create disambiguation session for ambiguous edit target
+      await createSession(
+        deps.supabase,
+        deps.userId,
+        deps.chatKey,
+        null,
+        'awaiting_edit_target',
+        rawTimeText || 'edit',
+      );
       await respondDisambiguate(
         responderDeps,
         activeTodos.map((t) => t.task),
@@ -595,6 +698,7 @@ export const _testExports = {
   RECURRING_RE,
   DONE_RE,
   CANCEL_RE,
+  CANCEL_NAMED_RE,
   EDIT_TIME_RE,
   CHATTER_RE,
   ACK_RE,

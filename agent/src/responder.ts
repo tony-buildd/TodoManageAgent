@@ -62,6 +62,30 @@ export async function respondTaskCreated(
 }
 
 /**
+ * Confirm a task has been updated with a new time.
+ */
+export async function respondTaskUpdated(
+  deps: ResponderDeps,
+  task: string,
+  dueAt: string,
+): Promise<void> {
+  const d = new Date(dueAt);
+  const timeStr = d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  const dateStr = d.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+  await deps.sendMessage(
+    `Updated "${task}" to ${dateStr} at ${timeStr}.`,
+  );
+}
+
+/**
  * Ask the user for disambiguation when multiple sessions/tasks match.
  */
 export async function respondDisambiguate(
