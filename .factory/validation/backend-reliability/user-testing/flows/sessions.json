@@ -1,0 +1,182 @@
+{
+  "groupId": "sessions",
+  "testedAt": "2026-03-21T03:09:00.000Z",
+  "isolation": {
+    "repo": "/Users/minhthiennguyen/Desktop/Desktop - Minh's MacBook Pro/photon2",
+    "testFiles": [
+      "agent/src/__tests__/sessions.test.ts",
+      "agent/src/__tests__/disambiguation-followup.test.ts"
+    ],
+    "command": "cd agent && npx vitest run src/__tests__/sessions.test.ts src/__tests__/disambiguation-followup.test.ts --reporter=verbose"
+  },
+  "toolsUsed": ["vitest-cli"],
+  "assertions": [
+    {
+      "id": "VAL-SESSION-001",
+      "title": "Follow-up reply attaches to correct task",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run vitest on sessions.test.ts",
+          "expected": "Tests for findSessionForReply pass, verifying label-based routing",
+          "observed": "All findSessionForReply tests pass (7 tests)"
+        },
+        {
+          "action": "Read test source for 'should match by task label when reply contains the label (VAL-SESSION-001)'",
+          "expected": "Test creates two sessions with different labels, sends reply containing one label, verifies correct session matched",
+          "observed": "Test creates session1 (get food) and session2 (call mom), calls findSessionForReply('get food at 10pm', [session1, session2]), asserts result equals session1"
+        },
+        {
+          "action": "Verify single-session case also works",
+          "expected": "When only one active session exists, any reply attaches to it",
+          "observed": "Test 'should return the single active session when only one exists' passes — findSessionForReply('10pm', [session]) returns the session"
+        },
+        {
+          "action": "Verify second session matching works",
+          "expected": "Reply mentioning second task label matches second session",
+          "observed": "Test 'should handle the second session matching by label' passes — findSessionForReply('call mom at 6pm', [session1, session2]) returns session2"
+        }
+      ],
+      "evidence": {
+        "testOutput": "backend-reliability/sessions/vitest-output.txt",
+        "relevantTests": [
+          "findSessionForReply > should match by task label when reply contains the label (VAL-SESSION-001) ✓",
+          "findSessionForReply > should return the single active session when only one exists ✓",
+          "findSessionForReply > should handle the second session matching by label ✓",
+          "findSessionForReply > should match case-insensitively by task label ✓"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SESSION-002",
+      "title": "Multiple active sessions coexist",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run vitest on sessions.test.ts",
+          "expected": "Tests for multiple session coexistence pass",
+          "observed": "Both VAL-SESSION-002 tests pass"
+        },
+        {
+          "action": "Read test source for 'Multiple active sessions coexisting (VAL-SESSION-002)'",
+          "expected": "Test verifies multiple sessions can exist for the same user and resolving one doesn't affect others",
+          "observed": "Test 'should allow multiple sessions for the same user' creates 3 sessions for user-1 and verifies getActiveSessions returns all 3. Test 'should not affect one session when resolving another' resolves session-1 and verifies the update targets only session-1 by id."
+        }
+      ],
+      "evidence": {
+        "testOutput": "backend-reliability/sessions/vitest-output.txt",
+        "relevantTests": [
+          "Multiple active sessions coexisting (VAL-SESSION-002) > should allow multiple sessions for the same user ✓",
+          "Multiple active sessions coexisting (VAL-SESSION-002) > should not affect one session when resolving another ✓"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SESSION-003",
+      "title": "Task name mentioned in follow-up prompts",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run vitest on sessions.test.ts",
+          "expected": "Tests for buildFollowUpPrompt pass, verifying task name inclusion",
+          "observed": "All 5 buildFollowUpPrompt (VAL-SESSION-003) tests pass"
+        },
+        {
+          "action": "Read test source for buildFollowUpPrompt tests",
+          "expected": "Tests verify that the prompt contains the task label for every prompt type",
+          "observed": "Tests verify: (1) awaiting_time prompt contains 'get food', (2) awaiting_date prompt contains 'call mom', (3) generic prompt contains 'buy milk', (4) disambiguation prompt contains 'which task', (5) exhaustive test iterates 4 task labels × 3 prompt types and asserts each prompt contains the label"
+        }
+      ],
+      "evidence": {
+        "testOutput": "backend-reliability/sessions/vitest-output.txt",
+        "relevantTests": [
+          "buildFollowUpPrompt (VAL-SESSION-003) > should include the task label in awaiting_time prompts ✓",
+          "buildFollowUpPrompt (VAL-SESSION-003) > should include the task label in awaiting_date prompts ✓",
+          "buildFollowUpPrompt (VAL-SESSION-003) > should include the task label in generic prompts ✓",
+          "buildFollowUpPrompt (VAL-SESSION-003) > should handle disambiguation prompts ✓",
+          "buildFollowUpPrompt (VAL-SESSION-003) > should always include the task name in follow-up prompts for non-disambiguation cases ✓"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SESSION-004",
+      "title": "Ambiguous reply across sessions triggers disambiguation",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run vitest on sessions.test.ts and disambiguation-followup.test.ts",
+          "expected": "Tests for ambiguous reply detection and disambiguation flow pass",
+          "observed": "All relevant tests pass across both files"
+        },
+        {
+          "action": "Read test source for ambiguity detection in findSessionForReply",
+          "expected": "When reply doesn't contain either task label with multiple sessions, returns null (triggering disambiguation)",
+          "observed": "Test 'should return null when reply is ambiguous across multiple sessions (VAL-SESSION-004)' — creates 2 sessions (get food, call mom), sends '10pm' which contains neither label, asserts result is null"
+        },
+        {
+          "action": "Read disambiguation-followup.test.ts for full disambiguation flow",
+          "expected": "Integration tests verify: ambiguous input triggers disambiguation prompt listing tasks, then user reply resolves it",
+          "observed": "Full flow tested: (1) 'cancel that' with 2 tasks → sendMessage called with 'which task' + both task names + numbered list. (2) User replies '1' → correct task canceled. (3) Also tested for edit ('make that 9') and done flows. (4) Unrecognized reply re-asks disambiguation. (5) Number out of range re-asks."
+        }
+      ],
+      "evidence": {
+        "testOutput": "backend-reliability/sessions/vitest-output.txt",
+        "relevantTests": [
+          "findSessionForReply > should return null when reply is ambiguous across multiple sessions (VAL-SESSION-004) ✓",
+          "findSessionForReply > should return null when reply matches multiple session labels ✓",
+          "cancel disambiguation > Step 1: 'cancel that' with 2 tasks triggers disambiguation ✓",
+          "edit disambiguation > Step 1: 'make that 9' with 2 tasks triggers disambiguation ✓",
+          "done disambiguation > Step 1: 'done' with multiple active tasks triggers disambiguation ✓",
+          "still ambiguous reply > unrecognized reply re-asks with task list ✓",
+          "still ambiguous reply > number out of range re-asks disambiguation ✓"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-EDGE-003",
+      "title": "Session staleness cleanup",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run vitest on sessions.test.ts",
+          "expected": "Tests for expireOldSessions pass, verifying 24-hour staleness cleanup",
+          "observed": "All 5 expireOldSessions (VAL-EDGE-003) tests pass"
+        },
+        {
+          "action": "Read test source for expireOldSessions tests",
+          "expected": "Tests verify: sessions older than maxAgeHours are resolved, default is 24 hours, custom age supported",
+          "observed": "Tests verify: (1) Sessions inactive for >maxAgeHours are resolved — update called with resolved_at, filtered by user_id, resolved_at IS null, updated_at < cutoff. (2) Default 24 hours — cutoff calculated as now - 24*60*60*1000ms. (3) Returns 0 when no expired sessions. (4) Error handling works. (5) Custom maxAgeHours (12) uses correct cutoff."
+        },
+        {
+          "action": "Verify lifecycle integration test for staleness",
+          "expected": "Integration test confirms stale sessions identified correctly",
+          "observed": "Test 'should correctly identify stale sessions for expiry' calls expireOldSessions with 24h, verifies 2 old sessions expired"
+        }
+      ],
+      "evidence": {
+        "testOutput": "backend-reliability/sessions/vitest-output.txt",
+        "relevantTests": [
+          "expireOldSessions (VAL-EDGE-003) > should resolve sessions inactive for more than maxAgeHours ✓",
+          "expireOldSessions (VAL-EDGE-003) > should default to 24 hours when maxAgeHours is not provided ✓",
+          "expireOldSessions (VAL-EDGE-003) > should return 0 when no sessions are expired ✓",
+          "expireOldSessions (VAL-EDGE-003) > should throw an error when Supabase returns an error ✓",
+          "expireOldSessions (VAL-EDGE-003) > should use custom maxAgeHours when provided ✓",
+          "Session lifecycle integration > should correctly identify stale sessions for expiry ✓"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 5 assertions: 5 passed. All session management behaviors (follow-up routing, multi-session coexistence, task name in prompts, disambiguation triggers, staleness cleanup) are verified by meaningful passing tests across sessions.test.ts (31 tests) and disambiguation-followup.test.ts (31 tests), totaling 62 tests all passing."
+}

@@ -1,0 +1,311 @@
+{
+  "groupId": "parsing-edge",
+  "testedAt": "2026-03-21T03:09:00.000Z",
+  "isolation": {
+    "repo": "/Users/minhthiennguyen/Desktop/Desktop - Minh's MacBook Pro/photon2",
+    "testFiles": [
+      "agent/src/__tests__/sanitize.test.ts",
+      "agent/src/__tests__/time-parser.test.ts"
+    ],
+    "command": "cd agent && npx vitest run src/__tests__/sanitize.test.ts src/__tests__/time-parser.test.ts --reporter=verbose"
+  },
+  "toolsUsed": ["vitest-cli"],
+  "assertions": [
+    {
+      "id": "VAL-PARSE-001",
+      "title": "Trailing junk stripped",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read sanitize.test.ts to identify tests for trailing junk stripping",
+          "expected": "Tests exist that verify trailing junk characters are removed",
+          "observed": "6 tests cover trailing junk: unmatched brackets (']'), multiple trailing junk (']]}''), pipe/tilde ('|~'), backslash/backtick ('\\`'), combined whitespace+junk, and a realistic noisy input"
+        },
+        {
+          "action": "Read sanitize.ts source to verify implementation",
+          "expected": "Implementation strips trailing junk characters",
+          "observed": "TRAILING_JUNK_RE = /[\\]\\[}{|\\\\~`]+$/ regex strips trailing junk, applied after whitespace normalization"
+        },
+        {
+          "action": "Run vitest with verbose output",
+          "expected": "All trailing junk tests pass",
+          "observed": "All 6 trailing junk tests pass (0ms each)"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "n/a (CLI test)",
+        "testOutput": "backend-reliability/parsing-edge/test-output.txt",
+        "relevantTests": [
+          "should strip trailing unmatched brackets",
+          "should strip multiple trailing junk characters",
+          "should strip trailing pipe and tilde characters",
+          "should strip trailing backslash and backtick characters",
+          "should handle combined whitespace and trailing junk",
+          "should handle a realistic noisy input"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-PARSE-002",
+      "title": "Whitespace normalized",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read sanitize.test.ts to identify whitespace normalization tests",
+          "expected": "Tests for trimming, collapsing multiple spaces, and normalizing tabs",
+          "observed": "4 tests cover whitespace: trim leading/trailing, collapse multiple spaces, normalize tabs/mixed whitespace, and empty-string for whitespace-only input"
+        },
+        {
+          "action": "Read sanitize.ts source to verify implementation",
+          "expected": "MULTI_SPACE_RE collapses all whitespace runs to single space",
+          "observed": "MULTI_SPACE_RE = /\\s+/g replaces all whitespace runs (spaces, tabs, newlines) with single space, preceded by trim()"
+        },
+        {
+          "action": "Run vitest with verbose output",
+          "expected": "All whitespace tests pass",
+          "observed": "All 4 whitespace normalization tests pass (0-1ms each)"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "n/a (CLI test)",
+        "testOutput": "backend-reliability/parsing-edge/test-output.txt",
+        "relevantTests": [
+          "should trim leading and trailing whitespace",
+          "should collapse multiple consecutive spaces into one",
+          "should normalize tabs and mixed whitespace to single spaces",
+          "should return empty string for whitespace-only input"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-PARSE-003",
+      "title": "Time parsed in user timezone by default",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read time-parser.test.ts to identify timezone default tests",
+          "expected": "Test verifies time is parsed in user's configured timezone",
+          "observed": "Test 'timezone default to user TZ (VAL-PARSE-003)' parses 'at 8:50' with tz='America/Los_Angeles', reference 2PM PST, and asserts hour=20 and minute=50 in LA timezone"
+        },
+        {
+          "action": "Read time-parser.ts source to verify implementation",
+          "expected": "parseTime uses user timezone for chrono-node reference",
+          "observed": "buildReference() passes userTimezone to chrono-node as the timezone context. createChronoInstance() uses userTimezone for AM/PM resolution. No UTC assumption."
+        },
+        {
+          "action": "Run vitest with verbose output",
+          "expected": "Timezone default test passes",
+          "observed": "Test passes (10ms)"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "n/a (CLI test)",
+        "testOutput": "backend-reliability/parsing-edge/test-output.txt",
+        "relevantTests": [
+          "should parse \"at 8:50\" in user timezone (America/Los_Angeles)"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-PARSE-004",
+      "title": "Explicit timezone override",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read time-parser.test.ts to identify explicit timezone tests",
+          "expected": "Test verifies explicit timezone token overrides user default",
+          "observed": "Test 'explicit timezone override (VAL-PARSE-004)' parses 'at 8:50 EST' with user tz='America/Los_Angeles', verifies hour=20 and minute=50 at EST offset (UTC-5/-300min)"
+        },
+        {
+          "action": "Read time-parser.ts source to verify implementation",
+          "expected": "Explicit timezone abbreviations are detected and passed to chrono-node",
+          "observed": "EXPLICIT_TZ_RE detects timezone abbreviations, TIMEZONE_OFFSETS maps them to minute offsets, passed to chrono-node via timezones option"
+        },
+        {
+          "action": "Run vitest with verbose output",
+          "expected": "Explicit timezone test passes",
+          "observed": "Test passes (18ms)"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "n/a (CLI test)",
+        "testOutput": "backend-reliability/parsing-edge/test-output.txt",
+        "relevantTests": [
+          "should parse \"at 8:50 EST\" using EST instead of user timezone"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-PARSE-005",
+      "title": "No-day defaults to today",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read time-parser.test.ts to identify no-day-defaults-to-today tests",
+          "expected": "Test verifies that time without day reference defaults to today",
+          "observed": "Test 'no-day defaults to today (VAL-PARSE-005)' parses 'at 9pm' with ref 2PM March 15, asserts parsedDay === refDay (same day)"
+        },
+        {
+          "action": "Read time-parser.ts source to verify implementation",
+          "expected": "chrono-node defaults to today when no day specified",
+          "observed": "adjustPastTimeToTomorrow only advances date when parsedDate < referenceDate AND no certain day. For future times on same day, date stays as today."
+        },
+        {
+          "action": "Run vitest with verbose output",
+          "expected": "No-day test passes",
+          "observed": "Test passes (0ms)"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "n/a (CLI test)",
+        "testOutput": "backend-reliability/parsing-edge/test-output.txt",
+        "relevantTests": [
+          "should default to today when no day is mentioned and time is in the future"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-PARSE-006",
+      "title": "Task text clean of time residue",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read time-parser.test.ts to identify task text cleanup tests",
+          "expected": "Tests verify time fragments removed from stored task text",
+          "observed": "3 tests in 'task text cleanup — no time residue (VAL-PARSE-006)': (1) 'remind me to get food at 8:50' → taskText contains 'remind me to get food' without '8:50' or 'at', (2) time-only input → empty taskText, (3) 'call mom at 3pm' → 'call mom' with no dangling 'at'"
+        },
+        {
+          "action": "Read time-parser.ts extractTaskText function",
+          "expected": "Implementation removes matched time fragments and cleans prepositions",
+          "observed": "extractTaskText removes chrono results from text by index, then cleans trailing prepositions (at/on/by/from/until/before/after/around) and collapses whitespace"
+        },
+        {
+          "action": "Run vitest with verbose output",
+          "expected": "All task text cleanup tests pass",
+          "observed": "All 3 tests pass (0ms each)"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "n/a (CLI test)",
+        "testOutput": "backend-reliability/parsing-edge/test-output.txt",
+        "relevantTests": [
+          "should remove time fragment from task text",
+          "should return empty taskText when input is only a time expression",
+          "should clean up dangling prepositions after time removal"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-PARSE-007",
+      "title": "Deterministic parsing before LLM",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read time-parser.test.ts to identify chrono-before-LLM test",
+          "expected": "Test verifies chrono-node runs without LLM involvement",
+          "observed": "Test 'chrono-node called before LLM (VAL-PARSE-007)' creates a mockLlmCall spy, calls parseTime, asserts mockLlmCall was not called"
+        },
+        {
+          "action": "Read time-parser.ts source imports and function signature",
+          "expected": "parseTime doesn't import or accept any LLM client",
+          "observed": "time-parser.ts imports only 'chrono-node' and local types. parseTime(text, userTimezone, referenceDate) has no LLM parameter. The module is structurally incapable of calling an LLM."
+        },
+        {
+          "action": "Run vitest with verbose output",
+          "expected": "Chrono-before-LLM test passes",
+          "observed": "Test passes (0ms)"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "n/a (CLI test)",
+        "testOutput": "backend-reliability/parsing-edge/test-output.txt",
+        "relevantTests": [
+          "should use chrono-node for parsing without any LLM call"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-EDGE-001",
+      "title": "Past time defaults to tomorrow",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read time-parser.test.ts to identify past-time-to-tomorrow tests",
+          "expected": "Test verifies past time is advanced to next day",
+          "observed": "2 tests in 'past time defaults to tomorrow (VAL-EDGE-001)': (1) 'at 8am' at 10am reference → parsedDay = refDay+1 (tomorrow), (2) 'tomorrow at 8am' with explicit day → stays at refDay+1 (doesn't double-advance)"
+        },
+        {
+          "action": "Read time-parser.ts adjustPastTimeToTomorrow",
+          "expected": "Past times without explicit day are advanced by 24h",
+          "observed": "adjustPastTimeToTomorrow checks: if no certain day AND parsedDate < referenceDate, adds 24*60*60*1000 ms. Explicit day/weekday skips the adjustment."
+        },
+        {
+          "action": "Run vitest with verbose output",
+          "expected": "Both past-time tests pass",
+          "observed": "Both tests pass (0-1ms)"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "n/a (CLI test)",
+        "testOutput": "backend-reliability/parsing-edge/test-output.txt",
+        "relevantTests": [
+          "should default to tomorrow when time is already past for today",
+          "should NOT advance to tomorrow when an explicit day is specified"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-EDGE-005",
+      "title": "AM/PM ambiguity in time parsing",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read time-parser.test.ts to identify AM/PM ambiguity tests",
+          "expected": "Tests verify contextual AM/PM resolution based on time of day",
+          "observed": "4 tests in 'AM/PM contextual resolution (VAL-EDGE-005)': (1) bare '8' in afternoon → 8PM (hour=20), (2) bare '8' in morning → 8AM (hour=8), (3) explicit 'am' overrides afternoon context → 8AM, (4) explicit 'pm' overrides morning context → 8PM"
+        },
+        {
+          "action": "Read time-parser.ts createChronoInstance AM/PM refiner",
+          "expected": "Custom chrono refiner applies contextual AM/PM defaults",
+          "observed": "Custom refiner checks if meridiem is uncertain: if currentHour>=12, assigns PM (meridiem=1, hour+12); if currentHour<12, assigns AM (meridiem=0). Only applies to hours 1-12."
+        },
+        {
+          "action": "Run vitest with verbose output",
+          "expected": "All AM/PM ambiguity tests pass",
+          "observed": "All 4 tests pass (0ms each)"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "n/a (CLI test)",
+        "testOutput": "backend-reliability/parsing-edge/test-output.txt",
+        "relevantTests": [
+          "should default bare \"8\" to PM when current time is afternoon",
+          "should default bare \"8\" to AM when current time is morning",
+          "should respect explicit AM even in afternoon context",
+          "should respect explicit PM even in morning context"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 9 assertions: 9 passed, 0 failed, 0 blocked. All parsing and edge-case assertions are covered by meaningful, passing unit tests in sanitize.test.ts (21 tests) and time-parser.test.ts (19 tests). Total: 40 tests, all green."
+}

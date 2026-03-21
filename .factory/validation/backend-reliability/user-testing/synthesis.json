@@ -1,0 +1,72 @@
+{
+  "milestone": "backend-reliability",
+  "round": 1,
+  "status": "fail",
+  "assertionsSummary": {
+    "total": 45,
+    "passed": 44,
+    "failed": 0,
+    "blocked": 1
+  },
+  "passedAssertions": [
+    "VAL-PARSE-001",
+    "VAL-PARSE-002",
+    "VAL-PARSE-003",
+    "VAL-PARSE-004",
+    "VAL-PARSE-005",
+    "VAL-PARSE-006",
+    "VAL-PARSE-007",
+    "VAL-EDGE-001",
+    "VAL-EDGE-002",
+    "VAL-EDGE-003",
+    "VAL-EDGE-004",
+    "VAL-EDGE-005",
+    "VAL-SESSION-001",
+    "VAL-SESSION-002",
+    "VAL-SESSION-003",
+    "VAL-SESSION-004",
+    "VAL-DISPATCH-001",
+    "VAL-DISPATCH-002",
+    "VAL-DISPATCH-003",
+    "VAL-DISPATCH-004",
+    "VAL-DISPATCH-005",
+    "VAL-REMIND-001",
+    "VAL-REMIND-002",
+    "VAL-REMIND-003",
+    "VAL-REMIND-004",
+    "VAL-REMIND-005",
+    "VAL-STATUS-001",
+    "VAL-STATUS-002",
+    "VAL-STATUS-003",
+    "VAL-STATUS-005",
+    "VAL-EOD-001",
+    "VAL-EOD-002",
+    "VAL-EDIT-001",
+    "VAL-EDIT-002",
+    "VAL-EDIT-003",
+    "VAL-EDIT-004",
+    "VAL-MULTI-001",
+    "VAL-MULTI-002",
+    "VAL-CHAT-001",
+    "VAL-CHAT-002",
+    "VAL-CHAT-003",
+    "VAL-DB-001",
+    "VAL-DB-002",
+    "VAL-DB-003"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [
+    {
+      "id": "VAL-STATUS-004",
+      "blockedBy": "No test exists for overdue derived state detection. The assertion requires a unit test confirming that in_progress tasks past due_at but within 15 minutes show as 'overdue but active' without a stored status change. No isOverdueActive helper or equivalent test was found in any test file under agent/src/__tests__/. This is a UI-derived state that may be implemented in the web dashboard milestone instead."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Created .factory/library/user-testing.md with testing surface documentation, test file mapping, concurrency guidance, and flow validator guidance for Vitest CLI",
+      "source": "setup"
+    }
+  ],
+  "previousRound": null
+}

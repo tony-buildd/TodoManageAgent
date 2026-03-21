@@ -1,0 +1,197 @@
+{
+  "groupId": "dispatcher",
+  "testedAt": "2026-03-21T03:09:00Z",
+  "isolation": {
+    "repo": "/Users/minhthiennguyen/Desktop/Desktop - Minh's MacBook Pro/photon2",
+    "testFile": "agent/src/__tests__/dispatcher.test.ts",
+    "command": "cd agent && npx vitest run src/__tests__/dispatcher.test.ts --reporter=verbose"
+  },
+  "toolsUsed": ["vitest-cli"],
+  "assertions": [
+    {
+      "id": "VAL-DISPATCH-001",
+      "title": "Agent messages ignored — Messages containing [PT] prefix are skipped by dispatcher",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read test source for '[PT] agent messages skipped (VAL-DISPATCH-001)' describe block",
+          "expected": "Tests exist that verify [PT]-prefixed messages produce no handler calls",
+          "observed": "Two tests found: (1) 'should skip messages with [PT] prefix and not call any handlers' — dispatches '[PT] Hello from the agent', asserts result.handled=false, result.action='skipped_agent_message', sendMessage not called, llmParse not called, and no Supabase calls made. (2) 'should skip [PT] messages even with extra content' — dispatches '[PT] Reminder: get food at 8:50 PM', asserts same skip behavior."
+        },
+        {
+          "action": "Run vitest with verbose output",
+          "expected": "Both tests pass",
+          "observed": "Both tests pass (✓)"
+        },
+        {
+          "action": "Verify test meaningfulness against source code",
+          "expected": "Tests genuinely verify [PT] prefix is checked first and short-circuits all processing",
+          "observed": "Source code (dispatcher.ts line ~237) checks AGENT_PREFIX_RE.test(rawText) as step (a), immediately returns {handled:false, action:'skipped_agent_message'} before any DB calls, LLM calls, or session loading. Tests verify this by asserting no sendMessage, no llmParse, and no mockFrom calls."
+        }
+      ],
+      "evidence": {
+        "testOutput": "backend-reliability/dispatcher/vitest-output.txt",
+        "testsMatched": [
+          "should skip messages with [PT] prefix and not call any handlers",
+          "should skip [PT] messages even with extra content"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-DISPATCH-002",
+      "title": "Greeting gets response — A greeting message receives a friendly response",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read test source for 'greeting detection and response (VAL-DISPATCH-002, VAL-CHAT-001)' describe block",
+          "expected": "Tests verify greeting inputs produce a non-empty friendly reply",
+          "observed": "14 greeting variants tested (hi, hello, hey, sup, yo, good morning, good evening, good afternoon, howdy, what's up, Hi!, HELLO, Hey!, hiya). Each test dispatches the greeting, asserts result.handled=true, result.action='greeting', sendMessage called once, sent text length > 0, and llmParse NOT called. Additionally, a negative test verifies 'hi there how are you' is NOT treated as a greeting."
+        },
+        {
+          "action": "Run vitest with verbose output",
+          "expected": "All 15 tests pass",
+          "observed": "All 15 greeting tests pass (✓)"
+        },
+        {
+          "action": "Verify test meaningfulness against source code",
+          "expected": "Tests genuinely verify greeting regex matching and response generation",
+          "observed": "Source code (dispatcher.ts) uses GREETING_RE regex anchored to start/end, calls respondGreeting() which sends a friendly message. Tests verify the full pipeline: greeting detection, response sending, and LLM bypass. The assertion contract requires 'a non-empty reply' — tests check sentText.length > 0."
+        }
+      ],
+      "evidence": {
+        "testOutput": "backend-reliability/dispatcher/vitest-output.txt",
+        "testsMatched": [
+          "should respond to \"hi\" with a friendly reply",
+          "should respond to \"hello\" with a friendly reply",
+          "should respond to \"hey\" with a friendly reply",
+          "should respond to \"sup\" with a friendly reply",
+          "should respond to \"yo\" with a friendly reply",
+          "should respond to \"good morning\" with a friendly reply",
+          "should respond to \"good evening\" with a friendly reply",
+          "should respond to \"good afternoon\" with a friendly reply",
+          "should respond to \"howdy\" with a friendly reply",
+          "should respond to \"what's up\" with a friendly reply",
+          "should respond to \"Hi!\" with a friendly reply",
+          "should respond to \"HELLO\" with a friendly reply",
+          "should respond to \"Hey!\" with a friendly reply",
+          "should respond to \"hiya\" with a friendly reply",
+          "should not treat \"hi there how are you\" as a pure greeting"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-DISPATCH-003",
+      "title": "Recurring reminder rejected with message — Recurring reminder request gets polite unsupported-feature response",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read test source for 'recurring reminder rejection (VAL-DISPATCH-003)' describe block",
+          "expected": "Tests verify recurring patterns produce an unsupported-feature response mentioning 'recurring'",
+          "observed": "7 recurring patterns tested: 'remind me every day to take pills', 'every friday check the mail', 'remind me every week to clean', 'set a daily reminder', 'weekly reminder to call mom', 'every weekday morning exercise', 'every morning stretch'. Each test asserts result.handled=true, result.action='recurring_unsupported', sendMessage called once, sent text contains 'recurring' (case-insensitive), and llmParse NOT called."
+        },
+        {
+          "action": "Run vitest with verbose output",
+          "expected": "All 7 tests pass",
+          "observed": "All 7 recurring rejection tests pass (✓)"
+        },
+        {
+          "action": "Verify test meaningfulness against source code",
+          "expected": "Tests genuinely verify recurring regex detection and unsupported response",
+          "observed": "Source code uses RECURRING_RE to detect patterns like 'every day|week|morning' and 'daily|weekly|monthly', then calls respondRecurringUnsupported(). Tests verify the response text contains 'recurring', confirming the polite unsupported-feature message is sent."
+        }
+      ],
+      "evidence": {
+        "testOutput": "backend-reliability/dispatcher/vitest-output.txt",
+        "testsMatched": [
+          "should reject recurring pattern: \"remind me every day to take pills\"",
+          "should reject recurring pattern: \"every friday check the mail\"",
+          "should reject recurring pattern: \"remind me every week to clean\"",
+          "should reject recurring pattern: \"set a daily reminder\"",
+          "should reject recurring pattern: \"weekly reminder to call mom\"",
+          "should reject recurring pattern: \"every weekday morning exercise\"",
+          "should reject recurring pattern: \"every morning stretch\""
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-DISPATCH-004",
+      "title": "Deterministic rules checked before LLM — Rule-based classification attempted before calling LLM",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read test source for 'LLM called only as fallback (VAL-DISPATCH-004)' and 'rule ordering: deterministic rules checked before LLM' describe blocks",
+          "expected": "Tests verify LLM is NOT called for rule-classifiable inputs AND is only called as last resort",
+          "observed": "Two describe blocks cover this assertion. (1) 'LLM called only as fallback' has 4 tests: verifies LLM called only for unclassifiable input ('what is the meaning of life' → llmParse called once, action='llm_fallback'), and LLM NOT called for greetings, recurring reminders, or deterministic follow-ups. (2) 'rule ordering' has 2 tests: greeting check runs before session loading (verifies even with active sessions, 'hey' → greeting action, LLM not called), recurring check runs before session loading (same pattern with active sessions)."
+        },
+        {
+          "action": "Run vitest with verbose output",
+          "expected": "All 6 tests pass",
+          "observed": "All 6 tests pass (✓)"
+        },
+        {
+          "action": "Verify test meaningfulness against source code",
+          "expected": "Tests genuinely verify the rule-first pipeline ordering: (d) greeting → (e) recurring → (f) sessions → (g) follow-up → (h) edit/cancel → (i) new-task → (j) LLM fallback",
+          "observed": "Source code implements a strict sequential pipeline where steps (a)-(i) are all attempted before step (j) LLM fallback. Tests mock llmParse and verify it's never called for deterministically classifiable inputs (greetings, recurring, follow-ups), confirming the rule-first architecture. The 'should call LLM only when rule-based pipeline cannot classify' test confirms LLM is called AND its response forwarded for truly unclassifiable messages."
+        }
+      ],
+      "evidence": {
+        "testOutput": "backend-reliability/dispatcher/vitest-output.txt",
+        "testsMatched": [
+          "should call LLM only when rule-based pipeline cannot classify",
+          "should NOT call LLM for greetings",
+          "should NOT call LLM for recurring reminders",
+          "should NOT call LLM for deterministic follow-ups",
+          "greeting check runs before session loading",
+          "recurring check runs before session loading"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-DISPATCH-005",
+      "title": "Non-task chatter ignored when no active session — Messages like 'lol', 'hmm' with no active session are ignored",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read test source for 'non-task chatter ignored when no active session (VAL-DISPATCH-005)' describe block",
+          "expected": "Tests verify chatter messages with no sessions produce no reply",
+          "observed": "7 chatter examples tested: 'lol', 'hmm', 'haha', 'lmao', 'yeah', 'nah', 'ok'. Each test sets activeSessions=[] (no active sessions), dispatches the chatter, asserts result.handled=false, result.action='chatter_ignored', sendMessage NOT called, and llmParse NOT called."
+        },
+        {
+          "action": "Run vitest with verbose output",
+          "expected": "All 7 tests pass",
+          "observed": "All 7 chatter tests pass (✓)"
+        },
+        {
+          "action": "Verify test meaningfulness against source code",
+          "expected": "Tests genuinely verify CHATTER_RE matching and silent ignore behavior with no sessions",
+          "observed": "Source code uses CHATTER_RE to detect common chatter tokens, checks activeSessions.length === 0 and no in_progress tasks, then returns {handled:false, action:'chatter_ignored'} without calling sendMessage. Tests verify both the regex matching AND the session-empty precondition. The contract specifies 'no reply sent' — tests assert sendMessage not called."
+        }
+      ],
+      "evidence": {
+        "testOutput": "backend-reliability/dispatcher/vitest-output.txt",
+        "testsMatched": [
+          "should ignore \"lol\" when no active session exists",
+          "should ignore \"hmm\" when no active session exists",
+          "should ignore \"haha\" when no active session exists",
+          "should ignore \"lmao\" when no active session exists",
+          "should ignore \"yeah\" when no active session exists",
+          "should ignore \"nah\" when no active session exists",
+          "should ignore \"ok\" when no active session exists"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 5 assertions: all 5 passed. 48/48 tests in dispatcher.test.ts pass. Each assertion has multiple meaningful tests with proper mocking (Supabase, LLM, iMessage SDK) that verify both the positive behavior and the absence of unintended side effects (no LLM calls, no spurious messages). Source code review confirms tests accurately exercise the described dispatcher pipeline logic."
+}
