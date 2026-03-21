@@ -266,7 +266,6 @@ describe('getOrCreateUser()', () => {
       },
       {
         onConflict: 'phone',
-        ignoreDuplicates: true,
       },
     );
     expect(result).toEqual(mockUser);
@@ -299,12 +298,37 @@ describe('getOrCreateUser()', () => {
       },
       {
         onConflict: 'phone',
-        ignoreDuplicates: true,
       },
     );
   });
 
-  it('should return the same user when called twice with the same phone (upsert safety)', async () => {
+  it('should return the same user when called twice with the same phone (upsert safety, VAL-DB-003)', async () => {
+    const mockUser = {
+      id: '123e4567-e89b-12d3-a456-426614174000',
+      phone: '+1234567890',
+      timezone: 'America/Los_Angeles',
+      lead_minutes: 30,
+      created_at: '2024-01-01T00:00:00Z',
+    };
+
+    // Both calls return the same user (ON CONFLICT DO UPDATE SET always returns the row)
+    mockSupabase.mockQueryBuilder.single.mockResolvedValue({
+      data: mockUser,
+      error: null,
+    });
+
+    const user1 = await getOrCreateUser(mockSupabase.client, '+1234567890');
+    const user2 = await getOrCreateUser(mockSupabase.client, '+1234567890');
+
+    // Both calls should return the same user without errors
+    expect(user1).toEqual(user2);
+    expect(user1.id).toBe(user2.id);
+
+    // upsert was called both times (not insert)
+    expect(mockSupabase.mockQueryBuilder.upsert).toHaveBeenCalledTimes(2);
+  });
+
+  it('should NOT use ignoreDuplicates (which causes PGRST116 for existing users)', async () => {
     const mockUser = {
       id: '123e4567-e89b-12d3-a456-426614174000',
       phone: '+1234567890',
@@ -318,15 +342,12 @@ describe('getOrCreateUser()', () => {
       error: null,
     });
 
-    const user1 = await getOrCreateUser(mockSupabase.client, '+1234567890');
-    const user2 = await getOrCreateUser(mockSupabase.client, '+1234567890');
+    await getOrCreateUser(mockSupabase.client, '+1234567890');
 
-    // Both calls should return the same user
-    expect(user1).toEqual(user2);
-    expect(user1.id).toBe(user2.id);
-
-    // upsert was called both times (not insert)
-    expect(mockSupabase.mockQueryBuilder.upsert).toHaveBeenCalledTimes(2);
+    // ignoreDuplicates must NOT be set (it causes ON CONFLICT DO NOTHING which
+    // doesn't return existing rows, triggering PGRST116 "0 rows" on .single())
+    const upsertCall = mockSupabase.mockQueryBuilder.upsert.mock.calls[0];
+    expect(upsertCall[1]).not.toHaveProperty('ignoreDuplicates');
   });
 
   it('should throw an error when Supabase returns an error', async () => {
@@ -365,7 +386,7 @@ describe('getOrCreateUser()', () => {
     expect(upsertCall[1]).toHaveProperty('onConflict', 'phone');
   });
 
-  it('should use ignoreDuplicates to avoid overwriting existing data', async () => {
+  it('should use ON CONFLICT DO UPDATE SET (default) to always return the row', async () => {
     const mockUser = {
       id: '123e4567-e89b-12d3-a456-426614174000',
       phone: '+1234567890',
@@ -381,7 +402,10 @@ describe('getOrCreateUser()', () => {
 
     await getOrCreateUser(mockSupabase.client, '+1234567890');
 
+    // With ignoreDuplicates omitted (defaults to false), Supabase uses
+    // ON CONFLICT DO UPDATE SET which always returns the row via RETURNING *
     const upsertCall = mockSupabase.mockQueryBuilder.upsert.mock.calls[0];
-    expect(upsertCall[1]).toHaveProperty('ignoreDuplicates', true);
+    expect(upsertCall[1]).toEqual({ onConflict: 'phone' });
+    expect(upsertCall[1]).not.toHaveProperty('ignoreDuplicates');
   });
 });

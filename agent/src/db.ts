@@ -27,7 +27,6 @@ export async function getOrCreateUser(
       },
       {
         onConflict: 'phone',
-        ignoreDuplicates: true,
       },
     )
     .select('*')
