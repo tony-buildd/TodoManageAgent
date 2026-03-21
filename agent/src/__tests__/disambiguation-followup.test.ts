@@ -693,4 +693,393 @@ describe('disambiguation follow-up flow', () => {
       expect(mocks.llmParse).not.toHaveBeenCalled();
     });
   });
+
+  describe('resolveSession ordering: action before session resolution', () => {
+    it('cancel: DB action executes before resolveSession', async () => {
+      const callOrder: string[] = [];
+      const session = makeSession({
+        state: 'awaiting_edit_target',
+        task_label_snapshot: 'cancel',
+        candidate_todo_ids: ['todo-1', 'todo-2'],
+      });
+
+      const sendMessage = vi.fn().mockResolvedValue(undefined);
+      const llmParse = vi.fn().mockResolvedValue(null);
+
+      const mockFrom = vi.fn().mockImplementation((table: string) => {
+        if (table === 'message_logs') {
+          return {
+            insert: vi.fn().mockReturnValue({ data: null, error: null }),
+          };
+        }
+        if (table === 'conversation_sessions') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                is: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    data: [session],
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+            update: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+              if (payload.resolved_at) {
+                callOrder.push('resolveSession');
+              }
+              return {
+                eq: vi.fn().mockReturnValue({ data: null, error: null }),
+              };
+            }),
+          };
+        }
+        if (table === 'todos') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                in: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    data: [todo1, todo2],
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+            update: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+              if (payload.status === 'canceled') {
+                callOrder.push('markTodoCanceled');
+              }
+              return {
+                eq: vi.fn().mockReturnValue({ data: null, error: null }),
+              };
+            }),
+          };
+        }
+        return { select: vi.fn().mockReturnThis() };
+      });
+
+      const deps: DispatcherDeps = {
+        supabase: { from: mockFrom } as any,
+        sendMessage,
+        userId: 'user-1',
+        userTimezone: 'America/Los_Angeles',
+        chatKey: '+15555555555',
+        llmParse,
+      };
+
+      await dispatch('1', deps);
+
+      expect(callOrder).toEqual(['markTodoCanceled', 'resolveSession']);
+    });
+
+    it('done: DB action executes before resolveSession', async () => {
+      const callOrder: string[] = [];
+      const session = makeSession({
+        state: 'awaiting_edit_target',
+        task_label_snapshot: 'done',
+        candidate_todo_ids: ['todo-1', 'todo-2'],
+      });
+
+      const sendMessage = vi.fn().mockResolvedValue(undefined);
+      const llmParse = vi.fn().mockResolvedValue(null);
+
+      const mockFrom = vi.fn().mockImplementation((table: string) => {
+        if (table === 'message_logs') {
+          return {
+            insert: vi.fn().mockReturnValue({ data: null, error: null }),
+          };
+        }
+        if (table === 'conversation_sessions') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                is: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    data: [session],
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+            update: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+              if (payload.resolved_at) {
+                callOrder.push('resolveSession');
+              }
+              return {
+                eq: vi.fn().mockReturnValue({ data: null, error: null }),
+              };
+            }),
+          };
+        }
+        if (table === 'todos') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                in: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    data: [todo1, todo2],
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+            update: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+              if (payload.status === 'done') {
+                callOrder.push('markTodoDone');
+              }
+              return {
+                eq: vi.fn().mockReturnValue({ data: null, error: null }),
+              };
+            }),
+          };
+        }
+        return { select: vi.fn().mockReturnThis() };
+      });
+
+      const deps: DispatcherDeps = {
+        supabase: { from: mockFrom } as any,
+        sendMessage,
+        userId: 'user-1',
+        userTimezone: 'America/Los_Angeles',
+        chatKey: '+15555555555',
+        llmParse,
+      };
+
+      await dispatch('1', deps);
+
+      expect(callOrder).toEqual(['markTodoDone', 'resolveSession']);
+    });
+
+    it('edit (time update): DB action executes before resolveSession', async () => {
+      const callOrder: string[] = [];
+      const session = makeSession({
+        state: 'awaiting_edit_target',
+        task_label_snapshot: '9pm',
+        candidate_todo_ids: ['todo-1', 'todo-2'],
+      });
+
+      const sendMessage = vi.fn().mockResolvedValue(undefined);
+      const llmParse = vi.fn().mockResolvedValue(null);
+
+      const mockFrom = vi.fn().mockImplementation((table: string) => {
+        if (table === 'message_logs') {
+          return {
+            insert: vi.fn().mockReturnValue({ data: null, error: null }),
+          };
+        }
+        if (table === 'conversation_sessions') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                is: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    data: [session],
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+            update: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+              if (payload.resolved_at) {
+                callOrder.push('resolveSession');
+              }
+              return {
+                eq: vi.fn().mockReturnValue({ data: null, error: null }),
+              };
+            }),
+          };
+        }
+        if (table === 'todos') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                in: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    data: [todo1, todo2],
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+            update: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+              if (payload.due_at) {
+                callOrder.push('updateTodoDueAt');
+              }
+              return {
+                eq: vi.fn().mockReturnValue({ data: null, error: null }),
+              };
+            }),
+          };
+        }
+        return { select: vi.fn().mockReturnThis() };
+      });
+
+      const deps: DispatcherDeps = {
+        supabase: { from: mockFrom } as any,
+        sendMessage,
+        userId: 'user-1',
+        userTimezone: 'America/Los_Angeles',
+        chatKey: '+15555555555',
+        llmParse,
+      };
+
+      await dispatch('1', deps);
+
+      expect(callOrder).toEqual(['updateTodoDueAt', 'resolveSession']);
+    });
+
+    it('cancel: if DB action throws, session is NOT resolved (user can retry)', async () => {
+      const session = makeSession({
+        state: 'awaiting_edit_target',
+        task_label_snapshot: 'cancel',
+        candidate_todo_ids: ['todo-1', 'todo-2'],
+      });
+
+      const sendMessage = vi.fn().mockResolvedValue(undefined);
+      let sessionResolved = false;
+
+      const mockFrom = vi.fn().mockImplementation((table: string) => {
+        if (table === 'message_logs') {
+          return {
+            insert: vi.fn().mockReturnValue({ data: null, error: null }),
+          };
+        }
+        if (table === 'conversation_sessions') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                is: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    data: [session],
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+            update: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+              if (payload.resolved_at) {
+                sessionResolved = true;
+              }
+              return {
+                eq: vi.fn().mockReturnValue({ data: null, error: null }),
+              };
+            }),
+          };
+        }
+        if (table === 'todos') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                in: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    data: [todo1, todo2],
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+            update: vi.fn().mockImplementation(() => {
+              // Simulate DB error when trying to cancel the todo
+              return {
+                eq: vi.fn().mockImplementation(() => {
+                  throw new Error('Database connection lost');
+                }),
+              };
+            }),
+          };
+        }
+        return { select: vi.fn().mockReturnThis() };
+      });
+
+      const deps: DispatcherDeps = {
+        supabase: { from: mockFrom } as any,
+        sendMessage,
+        userId: 'user-1',
+        userTimezone: 'America/Los_Angeles',
+        chatKey: '+15555555555',
+      };
+
+      // The dispatch should throw because the DB action failed
+      await expect(dispatch('1', deps)).rejects.toThrow('Database connection lost');
+
+      // Crucially, the session must NOT have been resolved
+      expect(sessionResolved).toBe(false);
+    });
+
+    it('done: if DB action throws, session is NOT resolved (user can retry)', async () => {
+      const session = makeSession({
+        state: 'awaiting_edit_target',
+        task_label_snapshot: 'done',
+        candidate_todo_ids: ['todo-1', 'todo-2'],
+      });
+
+      const sendMessage = vi.fn().mockResolvedValue(undefined);
+      let sessionResolved = false;
+
+      const mockFrom = vi.fn().mockImplementation((table: string) => {
+        if (table === 'message_logs') {
+          return {
+            insert: vi.fn().mockReturnValue({ data: null, error: null }),
+          };
+        }
+        if (table === 'conversation_sessions') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                is: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    data: [session],
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+            update: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+              if (payload.resolved_at) {
+                sessionResolved = true;
+              }
+              return {
+                eq: vi.fn().mockReturnValue({ data: null, error: null }),
+              };
+            }),
+          };
+        }
+        if (table === 'todos') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                in: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    data: [todo1, todo2],
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+            update: vi.fn().mockImplementation(() => {
+              // Simulate DB error when trying to mark done
+              return {
+                eq: vi.fn().mockImplementation(() => {
+                  throw new Error('Database connection lost');
+                }),
+              };
+            }),
+          };
+        }
+        return { select: vi.fn().mockReturnThis() };
+      });
+
+      const deps: DispatcherDeps = {
+        supabase: { from: mockFrom } as any,
+        sendMessage,
+        userId: 'user-1',
+        userTimezone: 'America/Los_Angeles',
+        chatKey: '+15555555555',
+      };
+
+      await expect(dispatch('1', deps)).rejects.toThrow('Database connection lost');
+      expect(sessionResolved).toBe(false);
+    });
+  });
 });

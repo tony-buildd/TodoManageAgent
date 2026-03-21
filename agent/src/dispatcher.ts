@@ -698,18 +698,20 @@ async function handleDisambiguationReply(
   const matched = matchDisambiguationReply(text, candidates);
 
   if (matched) {
-    // Apply the original action
+    // Apply the original action FIRST, then resolve session on success.
+    // If the DB action throws, the session stays active so the user can retry.
     const action = session.task_label_snapshot;
-    await resolveSession(deps.supabase, session.id);
 
     if (action === 'cancel') {
       await markTodoCanceled(deps.supabase, matched.id);
+      await resolveSession(deps.supabase, session.id);
       await respondTaskCanceled(responderDeps, matched.task);
       return { handled: true, action: 'follow_up_resolved' };
     }
 
     if (action === 'done') {
       await markTodoDone(deps.supabase, matched.id);
+      await resolveSession(deps.supabase, session.id);
       await respondTaskDone(responderDeps, matched.task);
       return { handled: true, action: 'follow_up_resolved' };
     }
@@ -725,6 +727,7 @@ async function handleDisambiguationReply(
         matched.id,
         parsed.date.toISOString(),
       );
+      await resolveSession(deps.supabase, session.id);
       await respondTaskUpdated(
         responderDeps,
         matched.task,
@@ -733,7 +736,7 @@ async function handleDisambiguationReply(
       return { handled: true, action: 'follow_up_resolved' };
     }
 
-    // Time parsing failed — let the user know
+    // Time parsing failed — let the user know (session stays active for retry)
     await respondGeneric(
       responderDeps,
       `I couldn't parse the time for the update. Could you try again?`,
