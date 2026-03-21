@@ -1,0 +1,12 @@
+{
+  "name": "photon-todo-agent",
+  "private": true,
+  "workspaces": [
+    "agent",
+    "web"
+  ],
+  "scripts": {
+    "agent": "npm run start --workspace=agent",
+    "web": "npm run dev --workspace=web"
+  }
+}
