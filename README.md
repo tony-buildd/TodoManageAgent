@@ -9,7 +9,7 @@ Photon uses the **self-text paradigm**: you send an iMessage to yourself describ
 ## Features
 
 - **Deterministic time parsing**: chrono-node extracts dates and times before the LLM is consulted, with timezone-aware defaults
-- **Multi-thread conversation sessions** — follow-up replies stay attached to the right task; multiple unresolved threads tracked simultaneously
+- **Multi-thread conversation sessions**: follow-up replies stay attached to the right task; multiple unresolved threads tracked simultaneously
 - **Rule-first dispatcher**: greetings, edits, cancels, done confirmations, and multi-task splitting are all handled deterministically before the LLM
 - **Smart reminder scheduling**: short-horizon tasks are reminded at due time instead of in the past
 - **Status lifecycle**: Pending → In Progress → Done / Not Confirmed / Canceled
@@ -25,9 +25,9 @@ This is a monorepo managed with npm workspaces:
 
 ```
 photon2/
-├── agent/          # TypeScript backend — iMessage watcher, dispatcher, scheduler
+├── agent/          # TypeScript backend: iMessage watcher, dispatcher, scheduler
 │   └── src/
-├── web/            # Next.js 14 dashboard — task management UI
+├── web/            # Next.js 14 dashboard : task management UI
 │   ├── app/
 │   ├── components/
 │   └── lib/
@@ -109,8 +109,8 @@ cp web/.env.local.example web/.env.local
 
 Run the SQL in `supabase/migrations/001_initial.sql` against your Supabase project. You can do this via:
 
-- **Supabase Dashboard** — open the SQL Editor and paste the migration file contents
-- **Supabase CLI** — `supabase db push` if you have the CLI configured
+- **Supabase Dashboard** : open the SQL Editor and paste the migration file contents
+- **Supabase CLI** : `supabase db push` if you have the CLI configured
 
 ### 6. Ensure Ollama is running
 
@@ -182,17 +182,17 @@ Tasks follow a five-state lifecycle:
 
 ```
 agent/src/
-├── index.ts        # Entry point — initializes DB, parser, SDK, scheduler, watcher
+├── index.ts        # Entry point : initializes DB, parser, SDK, scheduler, watcher
 ├── db.ts           # Supabase client and database operations
 ├── parser.ts       # Intent classification and time parsing (chrono-node + Ollama)
 ├── responder.ts    # Message response generation
 ├── scheduler.ts    # Reminder scheduling and grace-period transitions
 ├── types.ts        # Shared TypeScript types
-└── watcher.ts      # iMessage watcher — listens for new messages and dispatches
+└── watcher.ts      # iMessage watcher : listens for new messages and dispatches
 
 web/app/
 ├── layout.tsx      # Root layout with sidebar and header
-├── page.tsx        # Dashboard home — stats cards and upcoming tasks
+├── page.tsx        # Dashboard home : stats cards and upcoming tasks
 ├── globals.css     # Global styles and Tailwind config
 ├── todos/
 │   └── page.tsx    # Full task list with filtering and manual controls
