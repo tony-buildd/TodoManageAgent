@@ -1,0 +1,61 @@
+{
+  "featureId": "web-status-badges",
+  "reviewedAt": "2026-03-21T10:25:00.000Z",
+  "commitId": "42b537bcb20c549efae8fa0536018c3943b92040",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The StatusBadge component correctly implements all 5 spec statuses (pending/amber, in_progress/blue, done/emerald, not_confirmed/red, canceled/gray) plus the overdue derived state (red/warning) and a graceful fallback for unknown status values. The isOverdueActive helper function is correctly implemented with proper null/invalid-date guards, status check, and grace window logic. Legacy 'reminded' and 'archived' statuses are excluded from the config map and fall through to the neutral gray fallback. The worker also bootstrapped the full Next.js 14 project (layout, routing, Tailwind CSS, Supabase client, types) as prerequisite scaffolding. Build and typecheck pass, and agent-browser verified visual rendering of all badge variants on a dedicated demo page.",
+    "issues": [
+      {
+        "file": "web/app/layout.tsx",
+        "line": 28,
+        "severity": "non_blocking",
+        "description": "Navigation uses plain <a> tags instead of Next.js <Link> components. This causes full page reloads on every navigation click instead of client-side transitions. Should use 'import Link from \"next/link\"' for SPA-like navigation within the App Router."
+      },
+      {
+        "file": "web/lib/supabase.ts",
+        "line": 3,
+        "severity": "non_blocking",
+        "description": "Non-null assertion (!) on environment variables without runtime validation. If NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY are missing, this will throw a cryptic runtime error. A guard with a descriptive error message would be more robust."
+      },
+      {
+        "file": "web/components/status-badge.tsx",
+        "line": 88,
+        "severity": "non_blocking",
+        "description": "The fallback for unknown statuses renders the raw database string (e.g., 'some_future_status' displays literally as 'some_future_status'). While this matches the spec requirement ('render the raw string, don't crash'), a minor formatting improvement (replacing underscores with spaces, capitalizing) would improve UX for unexpected status values. Low priority."
+      },
+      {
+        "file": "web/components/status-badge.tsx",
+        "line": 1,
+        "severity": "non_blocking",
+        "description": "No unit tests were added for the isOverdueActive helper function. The validation contract VAL-STATUS-004 specifies 'test output (unit test confirms overdue detection logic)' as evidence. The demo page visually demonstrates correctness but automated unit tests would provide regression protection and satisfy the validation contract more precisely."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The feature's skillName is 'frontend-worker' but no such skill exists at .factory/skills/frontend-worker/SKILL.md. The worker attempted to invoke it, received an error, and proceeded without it. This missing skill should be created so future web dashboard workers have procedural guidance.",
+      "evidence": "Transcript shows: Tool: Skill { \"skill\": \"frontend-worker\" } → Error: Skill \"frontend-worker\" not found. Worker fell back to mission-worker-base procedures only. skillFeedback.followedProcedure=false confirms this deviation."
+    },
+    {
+      "area": "conventions",
+      "observation": "AGENTS.md says to use Next.js 14 App Router but doesn't specify using <Link> from next/link for client-side navigation. The worker used plain <a> tags in the layout, which is a common pitfall. Adding a convention about using Next.js Link component for internal navigation would prevent this in future features.",
+      "evidence": "web/app/layout.tsx:28-48 — four <a href=...> tags instead of <Link href=...> from 'next/link'"
+    },
+    {
+      "area": "conventions",
+      "observation": "The commit is very large (19 files, 3056 insertions) combining project scaffolding with the feature implementation. AGENTS.md mandates 'Small, atomic commits' and 'Each commit should do ONE thing.' The worker could have split this into a scaffolding commit and a status-badge feature commit. This is partially justified since the web project didn't exist yet, but a convention note about how to handle initial project setup commits would help.",
+      "evidence": "git show 42b537b --stat shows 19 files changed, 3056 insertions — includes package.json, lock file, config files, layout, 4 placeholder pages, types, supabase client, plus the actual feature component and demo page."
+    },
+    {
+      "area": "conventions",
+      "observation": "The worker committed the full package-lock.json (2541 lines) which is correct for reproducible builds, but the root .gitignore or AGENTS.md doesn't explicitly state whether lock files should be committed. This is standard practice but worth documenting.",
+      "evidence": "web/package-lock.json is 2541 lines in the commit diff."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The StatusBadge component fully implements all requirements: 5 spec statuses with correct colors/labels, overdue derived state with distinct red/warning styling, graceful fallback for unknown statuses (renders raw string without crashing), and a correctly-implemented isOverdueActive(status, dueAt, graceMinutes=15) helper exported for reuse. Agent-browser verification confirmed visual rendering. Non-blocking issues: layout uses <a> instead of Next.js <Link>, no unit tests for isOverdueActive (only visual demo), env var non-null assertions without guards. The missing frontend-worker skill is a shared-state gap that should be addressed."
+}

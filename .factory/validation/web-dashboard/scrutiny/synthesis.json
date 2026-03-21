@@ -1,0 +1,133 @@
+{
+  "milestone": "web-dashboard",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": { "passed": true, "command": "cd agent && npx vitest run", "exitCode": 0 },
+    "typecheck": { "passed": true, "command": "cd agent && npx tsc --noEmit", "exitCode": 0 },
+    "web-typecheck": { "passed": true, "command": "cd web && npx tsc --noEmit", "exitCode": 0 },
+    "web-build": { "passed": true, "command": "cd web && npx next build", "exitCode": 0 }
+  },
+  "reviewsSummary": {
+    "total": 6,
+    "passed": 5,
+    "failed": 1,
+    "failedFeatures": ["web-home-page"]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "web-home-page",
+      "severity": "blocking",
+      "description": "localToUTC() in dashboard-client.tsx double-applies timezone offset. new Date('YYYY-MM-DDThh:mm:ss') (no Z suffix) parses as browser-local time, which already equals the target TZ. The function then computes UTC-vs-TZ offset and adds it, effectively doubling the shift. For PDT (UTC-7): midnight PDT is correctly parsed as 07:00Z by the Date constructor, but then +7h is added giving 14:00Z — wrong by 7 hours. This causes incorrect todayStart/todayEnd, breaking today's task filtering and Done Today counts for any user not at UTC+0. The same bug pattern exists in dayBoundsUTC() in todo-board.tsx from the web-todos-page feature. Both must be fixed. Fix: use `return new Date('${dateStr}T${timeStr}').toISOString()` since browser TZ always equals target TZ, or use Z suffix and then apply offset correctly."
+    },
+    {
+      "featureId": "web-todos-page",
+      "severity": "blocking",
+      "description": "dayBoundsUTC() in todo-board.tsx has the same double-application timezone offset bug as localToUTC() in dashboard-client.tsx. Tasks due between midnight and ~7AM local time (for US Pacific users) would be excluded from Today/This Week filters. The All time group and status filtering are unaffected. Same fix needed."
+    }
+  ],
+  "nonBlockingIssues": [
+    {
+      "featureId": "web-status-badges",
+      "description": "Layout uses plain <a> tags instead of Next.js <Link> components, causing full page reloads on every navigation. Should use import Link from 'next/link'."
+    },
+    {
+      "featureId": "web-status-badges",
+      "description": "No unit tests for isOverdueActive() helper. VAL-STATUS-004 requires test output as evidence. Only a visual demo page exists."
+    },
+    {
+      "featureId": "web-status-badges",
+      "description": "Non-null assertions (!) on env vars in web/lib/supabase.ts without runtime validation."
+    },
+    {
+      "featureId": "web-home-page",
+      "description": "getSupabaseClient() creates a new client on every fetchDashboardData() call. Other components cache the client."
+    },
+    {
+      "featureId": "web-home-page",
+      "description": "getUserTimezone() duplicated in 4+ files (dashboard-client.tsx, todo-board.tsx, todo-card.tsx, demo page). Should be extracted to shared utility."
+    },
+    {
+      "featureId": "web-home-page",
+      "description": "Overdue filter includes ALL in_progress tasks with past due_at, not just within 15-min grace window. Previous-day overdue tasks appear under Today."
+    },
+    {
+      "featureId": "web-todos-page",
+      "description": "Duplicated Supabase client singleton pattern (getSupabaseClient with cachedClient) between todo-board.tsx and todo-actions.ts."
+    },
+    {
+      "featureId": "web-todos-page",
+      "description": "fetchTodos defined inside component but not in useEffect dependency array — potential ESLint exhaustive-deps warning."
+    },
+    {
+      "featureId": "web-manual-controls",
+      "description": "Duplicate HTML id attributes (edit-task-text, reschedule-datetime) across multiple TodoCards. Should use dynamic ids like edit-task-text-${todo.id}."
+    },
+    {
+      "featureId": "web-manual-controls",
+      "description": "Missing Radix UI Dialog.Description in Edit, Reschedule, and Cancel dialogs. Creates console warning and reduces accessibility."
+    },
+    {
+      "featureId": "web-manual-controls",
+      "description": "Reschedule hardcodes DEFAULT_LEAD_MINUTES=30 instead of fetching user's actual lead_minutes."
+    },
+    {
+      "featureId": "web-logs-page",
+      "description": "getSupabaseClient() creates new client on every 10s poll. Should cache like todo-actions.ts does."
+    },
+    {
+      "featureId": "web-logs-page",
+      "description": "Error state cleared at start of each poll, causing brief flash where error disappears then potentially reappears."
+    },
+    {
+      "featureId": "web-cross-area-integration",
+      "description": "Some 'integration' tests are purely conceptual (local array filtering) rather than exercising actual code. Real verification done via browser testing."
+    },
+    {
+      "featureId": "web-cross-area-integration",
+      "description": "Empty-state verification covered error states (Supabase connection failure) but not true zero-data states."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add convention: 'Use Next.js <Link> component (import Link from \"next/link\") for all internal navigation instead of plain <a> tags, to enable client-side transitions without full page reloads.'",
+      "evidence": "web/app/layout.tsx uses 4 plain <a href> tags for sidebar navigation. Identified in web-status-badges review.",
+      "isSystemic": false
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add convention: 'Shared browser-side utilities (getUserTimezone, Supabase client, timezone conversion) must be defined in web/lib/ and imported — never duplicated across component files.'",
+      "evidence": "getUserTimezone() duplicated identically in 4+ files. getSupabaseClient() duplicated with inconsistent caching patterns in 4+ files. Identified across web-home-page, web-todos-page, web-manual-controls, and web-logs-page reviews.",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add convention: 'For client-side Supabase usage in web components, use the lazy-cached singleton pattern (module-level cachedClient with error handling) from web/lib/todo-actions.ts. Do not use the eager singleton from web/lib/supabase.ts (which crashes on missing env vars) or create uncached clients per call.'",
+      "evidence": "Four different Supabase client patterns coexist: eager singleton (supabase.ts), lazy-cached (todo-actions.ts, todo-board.tsx), and uncached (dashboard-client.tsx, logs/page.tsx). Identified across all feature reviews.",
+      "isSystemic": true
+    },
+    {
+      "target": "skills",
+      "suggestion": "Create .factory/skills/frontend-worker/SKILL.md skill for web dashboard workers. All 6 web-dashboard features referenced skillName 'frontend-worker' but the skill doesn't exist. Workers fell back to mission-worker-base only.",
+      "evidence": "All 6 feature reviews confirmed the frontend-worker skill is missing. Each worker's skillFeedback.followedProcedure=false with deviation noting the skill was not found.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Lock file commit policy should be documented in AGENTS.md",
+      "reason": "Already standard practice (package-lock.json committed for reproducible builds). Not worth adding explicit convention — it's obvious."
+    },
+    {
+      "observation": "Large initial commit (19 files, 3056 insertions) for web-status-badges violates atomic commits convention",
+      "reason": "Justified exception — the web project didn't exist yet, so scaffolding had to be combined with the first feature. AGENTS.md already has sufficient commit discipline guidance."
+    },
+    {
+      "observation": "Supabase query chaining violates single-responsibility-lines convention",
+      "reason": "Already documented in AGENTS.md. Multiple reviewers flagged it but it's consistently not followed in web code — this is a convention enforcement issue, not a missing convention. The short Supabase chains (.from().select().order()) are readable enough that strict enforcement may be counterproductive for web code."
+    }
+  ],
+  "previousRound": null
+}

@@ -1,0 +1,51 @@
+{
+  "featureId": "web-manual-controls",
+  "reviewedAt": "2026-03-21T11:05:00.000Z",
+  "commitId": "1a7498b3a99932d5ebaedb4fb3f85997aed652f4",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Implementation covers all 8 requirements from the feature description: Edit, Reschedule, Cancel, and Mark Done controls are present on non-terminal todo cards. Each action uses Supabase PATCH via well-structured mutation helpers in todo-actions.ts. Dialogs use Radix UI Dialog properly with overlays and portal rendering. Cancel has a confirmation dialog as required. UI refetches after each mutation via onMutate callback. Error states are handled gracefully with inline error messages. Code follows AGENTS.md single-responsibility-lines convention. Two non-blocking issues identified.",
+    "issues": [
+      {
+        "file": "web/components/todo-card.tsx",
+        "line": 258,
+        "severity": "non_blocking",
+        "description": "Duplicate HTML id attributes when multiple TodoCards render: id='edit-task-text' (line 258) and id='reschedule-datetime' (line 337) will be repeated for every non-terminal card in the list. This violates HTML spec (ids must be unique) and could cause label association issues. Fix: use dynamic ids like `edit-task-text-${todo.id}`."
+      },
+      {
+        "file": "web/lib/todo-actions.ts",
+        "line": 17,
+        "severity": "non_blocking",
+        "description": "Duplicate Supabase client factory: todo-actions.ts defines its own getSupabaseClient() while web/lib/supabase.ts already exports a shared client. This is consistent with the pre-existing pattern in the codebase (todo-board.tsx, dashboard-client.tsx, and logs/page.tsx all duplicate this), so it's not a regression — but it's a missed opportunity to consolidate. The lazy-init pattern in todo-actions.ts is actually safer than supabase.ts's eager init (which uses non-null assertions on env vars), so this is acceptable."
+      },
+      {
+        "file": "web/components/todo-card.tsx",
+        "line": 228,
+        "severity": "non_blocking",
+        "description": "Missing Dialog.Description in Edit, Reschedule, and Cancel dialogs. Radix UI Dialog logs a console warning when Description is omitted ('Missing `Description` or `aria-describedby` attribute'). Not a functional issue but creates developer console noise and reduces accessibility."
+      },
+      {
+        "file": "web/lib/todo-actions.ts",
+        "line": 84,
+        "severity": "non_blocking",
+        "description": "Reschedule hardcodes DEFAULT_LEAD_MINUTES=30 instead of fetching the user's actual lead_minutes from the users table. The feature spec says 'due_at - user's lead_minutes', but this is consistent with the rest of the codebase (agent's createTodo also uses default 30). Prior scrutiny reviews (edit-cancel-flows) flagged this same pattern as non-blocking."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "Multiple files across the web codebase each define their own getSupabaseClient() factory (todo-board.tsx, dashboard-client.tsx, logs/page.tsx, todo-actions.ts) instead of using the shared web/lib/supabase.ts export. AGENTS.md doesn't document a convention for which pattern to use. A convention should be added to prevent further fragmentation.",
+      "evidence": "web/lib/supabase.ts exports a shared client. web/components/todo-board.tsx:25, web/components/dashboard-client.tsx:12, web/app/logs/page.tsx:11, web/lib/todo-actions.ts:17 all define local getSupabaseClient() factories."
+    },
+    {
+      "area": "skills",
+      "observation": "Feature references skillName 'frontend-worker' but no such skill exists in .factory/skills/. Worker correctly deviated and used mission-worker-base instead. The feature definition should be updated to reference an existing skill, or the frontend-worker skill should be created.",
+      "evidence": "Handoff skillFeedback.deviations confirms: 'The skill frontend-worker does not exist in the system. Followed mission-worker-base procedures and implemented the feature directly.'"
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The web-manual-controls feature is well-implemented with all 4 required actions (Edit, Reschedule, Cancel, Mark Done) working correctly. Code is clean, follows project conventions, uses Radix UI Dialog properly, handles errors gracefully, and refetches after mutations. Four non-blocking issues found: duplicate HTML ids across cards, duplicate Supabase client factory, missing Dialog.Description for accessibility, and hardcoded lead_minutes. None are blocking — the feature meets all expectedBehavior criteria and passes typecheck/build validation."
+}

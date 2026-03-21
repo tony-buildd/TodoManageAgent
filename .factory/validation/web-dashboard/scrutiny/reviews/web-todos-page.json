@@ -1,0 +1,62 @@
+{
+  "featureId": "web-todos-page",
+  "reviewedAt": "2026-03-21T11:15:00.000Z",
+  "commitId": "e97b490",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The Todos page feature implements all 6 required status filter tabs, the Today/This Week/All time grouping with This Week as default, TodoCard component with task text, formatted due time, StatusBadge, created time, and overdue indicator. Canceled tasks correctly appear in Canceled and All tabs. Older tasks are accessible via the All time group. The overall UI structure, accessibility (ARIA roles, tablist/tab), error handling, loading states, and empty states are well-implemented. One non-blocking timezone bug was found in the dayBoundsUTC helper that affects edge-case time filtering for early-morning tasks, and there are minor code duplication issues. The feature substantially meets all requirements.",
+    "issues": [
+      {
+        "file": "web/components/todo-board.tsx",
+        "line": 68,
+        "severity": "non_blocking",
+        "description": "Timezone offset double-application bug in dayBoundsUTC(). The function creates `new Date(`${dateStr}T00:00:00`)` which JavaScript parses in the MACHINE's local timezone (producing a Date with correct UTC internals for local midnight). It then adds getTimezoneOffsetMs() which computes the offset between UTC and the target timezone. Since getUserTimezone() returns the browser's system timezone (same as the machine timezone), the offset is redundantly applied — shifting the result forward by the UTC offset. For example, in PDT (UTC-7), midnight local is correctly stored as 07:00Z internally, but after adding +7h offset it becomes 14:00Z. This means tasks due between midnight and ~7AM local time would be excluded from Today/This Week filters. The bug doesn't manifest with the demo mock data (all test times are mid-day), and the All time group is unaffected. Fix: either use `new Date(`${dateStr}T00:00:00Z`)` (with Z suffix) to create a pretend-UTC date that the offset correctly converts, or remove the offset entirely since the browser TZ always matches the target TZ."
+      },
+      {
+        "file": "web/components/todo-board.tsx",
+        "line": 23,
+        "severity": "non_blocking",
+        "description": "Duplicated Supabase client singleton. getSupabaseClient() with module-level cachedClient is duplicated between todo-board.tsx and web/lib/todo-actions.ts. Should be extracted to a shared module (e.g., web/lib/supabase-client.ts) to avoid drift and reduce bundle size."
+      },
+      {
+        "file": "web/components/todo-card.tsx",
+        "line": 14,
+        "severity": "non_blocking",
+        "description": "getUserTimezone() helper is duplicated across todo-card.tsx, todo-board.tsx, and demo/todos/page.tsx. Production code (todo-card and todo-board) should share a single utility from a lib/ module."
+      },
+      {
+        "file": "web/components/todo-board.tsx",
+        "line": 187,
+        "severity": "non_blocking",
+        "description": "Supabase query chains .from().select().order() on a single expression. AGENTS.md mandates single-responsibility lines with intermediate variables for chained queries. Should be broken into: const table = supabase.from('todos'); const allFields = table.select('*'); const { data, error } = await allFields.order(...)."
+      },
+      {
+        "file": "web/components/todo-board.tsx",
+        "line": 174,
+        "severity": "non_blocking",
+        "description": "fetchTodos is defined as an async function inside the component but referenced in useEffect without being included in the dependency array. While this works correctly for a one-time fetch, it generates an ESLint exhaustive-deps warning in strict setups. Consider wrapping with useCallback or defining inside the effect."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "Worker created a module-level Supabase client singleton (getSupabaseClient with cachedClient) in todo-board.tsx that duplicates the same pattern in web/lib/todo-actions.ts. AGENTS.md doesn't mention a convention for shared Supabase client instantiation on the web side, which leads to repeated boilerplate. A standard web Supabase client module should be documented.",
+      "evidence": "web/components/todo-board.tsx:23 and web/lib/todo-actions.ts:13 both define identical getSupabaseClient() with cachedClient pattern."
+    },
+    {
+      "area": "conventions",
+      "observation": "Worker duplicated getUserTimezone() helper across 3 files instead of extracting to a shared utility. AGENTS.md doesn't specify where shared browser utilities should live for the web app.",
+      "evidence": "getUserTimezone() defined in web/components/todo-board.tsx:47, web/components/todo-card.tsx:14, and web/app/demo/todos/page.tsx:17."
+    },
+    {
+      "area": "skills",
+      "observation": "The feature specifies skillName 'frontend-worker' but this skill does not exist in .factory/skills/. The worker proceeded without it and delivered successfully. Either the skill should be created or the feature spec should note it's optional.",
+      "evidence": "features.json has skillName: 'frontend-worker'. Glob for .factory/skills/frontend-worker/SKILL.md returned no results. Handoff skillFeedback confirms: 'The frontend-worker skill was not found/available.'"
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "The web-todos-page feature passes review. All 6 status filter tabs (All, Pending, In Progress, Done, Not Confirmed, Canceled) are implemented correctly. Time grouping (Today/This Week/All) with This Week as default is in place. TodoCard displays task text, formatted due time with timezone, StatusBadge, created time, and overdue indicator via isOverdueActive. Canceled tasks are visible in both Canceled and All tabs. Older tasks are accessible via the All time group. One non-blocking timezone bug in dayBoundsUTC double-applies the UTC offset when the browser timezone equals the target timezone (the normal case), causing early-morning tasks to be excluded from Today/This Week filters. This doesn't affect the All time group or status filtering, and the demo verification used mid-day times so it wasn't caught. Additional non-blocking issues include duplicated utility functions and a minor AGENTS.md coding convention deviation."
+}
