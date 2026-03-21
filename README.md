@@ -42,7 +42,7 @@ photon2/
 
 - **TypeScript**: agent and web are both TypeScript
 - **Photon iMessage Kit**: watches macOS `chat.db` for new messages and sends replies
-- **Ollama** — local LLM inference (default model: `llama3.2:3b`) for intent classification fallback
+- **Ollama**: local LLM inference (default model: `llama3.2:3b`) for intent classification fallback
 - **chrono-node**: deterministic date/time parsing
 - **Supabase**: PostgreSQL database with Row Level Security
 - **Next.js 14**: server-rendered dashboard with App Router
