@@ -353,6 +353,17 @@ export async function dispatch(
       return { handled: true, action: 'edit_cancel_done' };
     }
     // Multiple tasks — disambiguate
+    const doneSession = await createSession(
+      deps.supabase,
+      deps.userId,
+      deps.chatKey,
+      null,
+      'awaiting_edit_target',
+      'done',
+    );
+    await updateSession(deps.supabase, doneSession.id, {
+      candidate_todo_ids: activeTodos.map((t) => t.id),
+    });
     await respondDisambiguate(
       responderDeps,
       activeTodos.map((t) => t.task),
@@ -372,7 +383,7 @@ export async function dispatch(
       return { handled: true, action: 'edit_cancel_done' };
     }
     // Multiple tasks — create disambiguation session
-    await createSession(
+    const cancelSession = await createSession(
       deps.supabase,
       deps.userId,
       deps.chatKey,
@@ -380,6 +391,9 @@ export async function dispatch(
       'awaiting_edit_target',
       'cancel',
     );
+    await updateSession(deps.supabase, cancelSession.id, {
+      candidate_todo_ids: activeTodos.map((t) => t.id),
+    });
     await respondDisambiguate(
       responderDeps,
       activeTodos.map((t) => t.task),
@@ -417,7 +431,7 @@ export async function dispatch(
     }
 
     // Multiple or no match with multiple tasks — disambiguate
-    await createSession(
+    const cancelNamedSession = await createSession(
       deps.supabase,
       deps.userId,
       deps.chatKey,
@@ -425,6 +439,9 @@ export async function dispatch(
       'awaiting_edit_target',
       'cancel',
     );
+    await updateSession(deps.supabase, cancelNamedSession.id, {
+      candidate_todo_ids: activeTodos.map((t) => t.id),
+    });
     await respondDisambiguate(
       responderDeps,
       activeTodos.map((t) => t.task),
@@ -486,7 +503,7 @@ export async function dispatch(
 
     if (activeTodos.length > 1) {
       // Create disambiguation session for ambiguous edit target
-      await createSession(
+      const editSession = await createSession(
         deps.supabase,
         deps.userId,
         deps.chatKey,
@@ -494,6 +511,9 @@ export async function dispatch(
         'awaiting_edit_target',
         rawTimeText || 'edit',
       );
+      await updateSession(deps.supabase, editSession.id, {
+        candidate_todo_ids: activeTodos.map((t) => t.id),
+      });
       await respondDisambiguate(
         responderDeps,
         activeTodos.map((t) => t.task),
@@ -616,7 +636,164 @@ async function handleFollowUp(
     return { handled: true, action: 'follow_up_resolved' };
   }
 
+  // ── awaiting_edit_target: user is replying to a disambiguation prompt ──
+  if (session.state === 'awaiting_edit_target') {
+    const result = await handleDisambiguationReply(
+      text,
+      session,
+      deps,
+      responderDeps,
+    );
+    if (result) return result;
+  }
+
   // Couldn't handle — return null to let pipeline continue
+  return null;
+}
+
+// ─── Disambiguation reply handling ──────────────────────────────────────────
+
+/**
+ * Handle a user reply to a disambiguation prompt (numbered task list).
+ *
+ * The user may reply with:
+ * - A number (e.g., "1", "2") — selects by position in the listed tasks
+ * - A task name (e.g., "get food") — matches by name
+ * - A fuzzy/partial match (e.g., "food") — partial name matching
+ *
+ * The original action is stored in session.task_label_snapshot:
+ * - "cancel" → cancel the selected task
+ * - "done" → mark the selected task as done
+ * - anything else → a time expression to apply as an edit
+ *
+ * If still ambiguous, re-ask disambiguation.
+ */
+async function handleDisambiguationReply(
+  text: string,
+  session: ConversationSession,
+  deps: DispatcherDeps,
+  responderDeps: ResponderDeps,
+): Promise<DispatchResult | null> {
+  // Get candidate todos — use active todos, filtered by stored candidate IDs if available
+  const activeTodos = await getActiveTodos(deps.supabase, deps.userId);
+  let candidates: Todo[];
+  if (session.candidate_todo_ids && session.candidate_todo_ids.length > 0) {
+    const idSet = new Set(session.candidate_todo_ids);
+    candidates = activeTodos.filter((t) => idSet.has(t.id));
+    // Fallback to all active if stored candidates are no longer active
+    if (candidates.length === 0) {
+      candidates = activeTodos;
+    }
+  } else {
+    candidates = activeTodos;
+  }
+
+  if (candidates.length === 0) {
+    await resolveSession(deps.supabase, session.id);
+    await respondNoActiveTasks(responderDeps);
+    return { handled: true, action: 'follow_up_resolved' };
+  }
+
+  // Try to match the reply to a candidate task
+  const matched = matchDisambiguationReply(text, candidates);
+
+  if (matched) {
+    // Apply the original action
+    const action = session.task_label_snapshot;
+    await resolveSession(deps.supabase, session.id);
+
+    if (action === 'cancel') {
+      await markTodoCanceled(deps.supabase, matched.id);
+      await respondTaskCanceled(responderDeps, matched.task);
+      return { handled: true, action: 'follow_up_resolved' };
+    }
+
+    if (action === 'done') {
+      await markTodoDone(deps.supabase, matched.id);
+      await respondTaskDone(responderDeps, matched.task);
+      return { handled: true, action: 'follow_up_resolved' };
+    }
+
+    // Otherwise, the action is a time expression — parse and apply edit
+    const newTimeText = /^\d{1,2}$/.test(action.trim())
+      ? `at ${action.trim()}`
+      : action;
+    const parsed = parseTime(newTimeText, deps.userTimezone);
+    if (parsed.date) {
+      await updateTodoDueAt(
+        deps.supabase,
+        matched.id,
+        parsed.date.toISOString(),
+      );
+      await respondTaskUpdated(
+        responderDeps,
+        matched.task,
+        parsed.date.toISOString(),
+      );
+      return { handled: true, action: 'follow_up_resolved' };
+    }
+
+    // Time parsing failed — let the user know
+    await respondGeneric(
+      responderDeps,
+      `I couldn't parse the time for the update. Could you try again?`,
+    );
+    return { handled: true, action: 'follow_up_resolved' };
+  }
+
+  // Still ambiguous — re-ask
+  await respondDisambiguate(
+    responderDeps,
+    candidates.map((t) => t.task),
+  );
+  return { handled: true, action: 'follow_up_resolved' };
+}
+
+/**
+ * Match a user's reply text to one of the candidate todos.
+ *
+ * Matching strategies (in priority order):
+ * 1. Number match: "1", "2", etc. → index into candidates list
+ * 2. Exact name match: reply matches a task name exactly (case-insensitive)
+ * 3. Fuzzy/partial match: reply is contained in a task name or vice versa
+ *
+ * Returns the matched todo, or null if ambiguous/no match.
+ */
+function matchDisambiguationReply(
+  text: string,
+  candidates: Todo[],
+): Todo | null {
+  const normalized = text.trim().toLowerCase();
+
+  // 1. Number match — "1", "2", etc.
+  const numMatch = /^(\d+)$/.exec(normalized);
+  if (numMatch) {
+    const index = parseInt(numMatch[1], 10) - 1; // 1-based to 0-based
+    if (index >= 0 && index < candidates.length) {
+      return candidates[index];
+    }
+    return null; // Number out of range
+  }
+
+  // 2. Exact name match (case-insensitive)
+  const exactMatches = candidates.filter(
+    (t) => t.task.toLowerCase() === normalized,
+  );
+  if (exactMatches.length === 1) {
+    return exactMatches[0];
+  }
+
+  // 3. Fuzzy/partial match — reply contained in task name or vice versa
+  const fuzzyMatches = candidates.filter(
+    (t) =>
+      t.task.toLowerCase().includes(normalized) ||
+      normalized.includes(t.task.toLowerCase()),
+  );
+  if (fuzzyMatches.length === 1) {
+    return fuzzyMatches[0];
+  }
+
+  // Ambiguous or no match
   return null;
 }
 
@@ -760,4 +937,5 @@ export const _testExports = {
   markTodoDone,
   markTodoCanceled,
   updateTodoDueAt,
+  matchDisambiguationReply,
 };
