@@ -1,4 +1,10 @@
-import 'dotenv/config';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const currentFile = fileURLToPath(import.meta.url);
+const currentDir  = dirname(currentFile);
+const envPath     = join(currentDir, '..', '..', '.env');
+process.loadEnvFile(envPath);
 import { IMessageSDK } from '@photon-ai/imessage-kit';
 import { createClient } from '@supabase/supabase-js';
 import { Ollama } from 'ollama';
