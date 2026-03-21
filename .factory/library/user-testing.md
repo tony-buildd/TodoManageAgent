@@ -106,6 +106,17 @@ To test all assertions, you need todos with these statuses:
 - The demo page at `/demo` works without Supabase and can validate badge assertions
 - Error handling works correctly on all pages (shows user-visible error, not silent failure)
 
+### Known Issues (Round 2)
+- `.env.local` STILL missing. Confirmed no Supabase credentials exist anywhere in the environment:
+  - No `.env` or `.env.local` files in repo root, web/, or agent/ directories
+  - No `~/.supabase/` or `~/.config/supabase/` config dirs
+  - `supabase projects list` fails with "Access token not provided"
+  - Docker not available (cannot start local Supabase)
+  - No `supabase/config.toml` for project linking
+- The fix-supabase-env-var-name feature (commit d59d95d) only added ANON_KEY fallback in getSupabaseClient — it did NOT create the .env.local file
+- **BLOCKER**: The orchestrator or user must provide Supabase credentials (URL + anon/publishable key) and create web/.env.local before these 18 assertions can be tested
+- All 18 blocked assertions from round 1 remain blocked with the same root cause
+
 ## Validation Concurrency
 
 **Surface: Web Browser (agent-browser)**

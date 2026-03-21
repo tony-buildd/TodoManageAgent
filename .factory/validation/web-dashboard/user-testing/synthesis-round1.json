@@ -1,0 +1,128 @@
+{
+  "group": "direct-testing",
+  "surface": "web-browser + vitest",
+  "assertions": {
+    "VAL-BADGE-001": {
+      "status": "pass",
+      "evidence": "Demo page screenshot shows all 5 badges: Pending (amber), In Progress (blue), Done (green), Not Confirmed (red), Canceled (gray). No crashes for any status. Unknown statuses render raw string with neutral styling.",
+      "screenshot": "demo-badges.png"
+    },
+    "VAL-BADGE-002": {
+      "status": "pass",
+      "evidence": "Demo page shows side-by-side comparison: 'In Progress' (blue) vs 'Overdue' (red). Visually distinct styling. isOverdueActive helper correctly returns true for in_progress task 5min past due, false for 20min past (beyond grace), false for not-yet-due, false for wrong status, false for null due_at.",
+      "screenshot": "demo-badges.png"
+    },
+    "VAL-STATUS-004": {
+      "status": "pass",
+      "evidence": "Demo page shows isOverdueActive helper test results: in_progress + 5min ago = true (correct), in_progress + 20min ago = false (past grace, correct), in_progress + 1hr future = false (not yet due, correct), pending + 5min ago = false (wrong status, correct), in_progress + null = false (no due_at, correct). All match expected values.",
+      "screenshot": "demo-badges.png"
+    },
+    "VAL-CROSS-002": {
+      "status": "pass",
+      "evidence": "6 vitest tests pass in cross-area-integration.test.ts: getDueReminders excludes canceled, canceled task never picked up by sendDueReminders, canceled not transitioned by grace period, canceled not in EOD summary, full tick cycle ignores canceled, web-canceled task prevents reminders."
+    },
+    "VAL-CROSS-003": {
+      "status": "pass",
+      "evidence": "Browser testing confirmed all 4 sidebar links navigate correctly: Dashboard -> /, Todos -> /todos, Messages -> /logs, Settings -> /settings. Uses Next.js Link components (no full page reloads). No console errors on any page.",
+      "screenshot": "settings-page.png"
+    },
+    "VAL-LOG-003": {
+      "status": "pass",
+      "evidence": "Logs page shows user-visible error 'Failed to load messages' with the specific error message and a 'Try Again' button when Supabase fetch fails. Error is displayed in red box, NOT swallowed silently.",
+      "screenshot": "logs-error.png"
+    },
+    "VAL-CROSS-001": {
+      "status": "blocked",
+      "blockedBy": "Supabase credentials missing - web/.env.local file does not exist. Cannot seed data or verify dashboard reflects backend status changes."
+    },
+    "VAL-CROSS-004": {
+      "status": "blocked",
+      "blockedBy": "Supabase credentials missing - cannot verify empty state with zero data because Supabase client throws before any data can be fetched. Dashboard shows error state, not empty state."
+    },
+    "VAL-HOME-001": {
+      "status": "blocked",
+      "blockedBy": "Supabase credentials missing - cannot seed not_confirmed and pending tasks to verify priority ordering."
+    },
+    "VAL-HOME-002": {
+      "status": "blocked",
+      "blockedBy": "Supabase credentials missing - cannot seed overdue active tasks to verify display."
+    },
+    "VAL-HOME-003": {
+      "status": "blocked",
+      "blockedBy": "Supabase credentials missing - cannot seed tasks to verify ascending sort."
+    },
+    "VAL-HOME-004": {
+      "status": "blocked",
+      "blockedBy": "Supabase credentials missing - stat cards not visible due to error state."
+    },
+    "VAL-HOME-005": {
+      "status": "blocked",
+      "blockedBy": "Supabase credentials missing - cannot verify empty state (shows error instead of empty state)."
+    },
+    "VAL-TODO-001": {
+      "status": "blocked",
+      "blockedBy": "Supabase credentials missing - cannot verify status filtering."
+    },
+    "VAL-TODO-002": {
+      "status": "blocked",
+      "blockedBy": "Supabase credentials missing - cannot verify time grouping."
+    },
+    "VAL-TODO-003": {
+      "status": "blocked",
+      "blockedBy": "Supabase credentials missing - cannot verify todo card content."
+    },
+    "VAL-TODO-004": {
+      "status": "blocked",
+      "blockedBy": "Supabase credentials missing - cannot verify canceled tasks in history."
+    },
+    "VAL-TODO-005": {
+      "status": "blocked",
+      "blockedBy": "Supabase credentials missing - cannot verify old task accessibility."
+    },
+    "VAL-CTRL-001": {
+      "status": "blocked",
+      "blockedBy": "Supabase credentials missing - cannot test edit task text control."
+    },
+    "VAL-CTRL-002": {
+      "status": "blocked",
+      "blockedBy": "Supabase credentials missing - cannot test reschedule control."
+    },
+    "VAL-CTRL-003": {
+      "status": "blocked",
+      "blockedBy": "Supabase credentials missing - cannot test cancel control."
+    },
+    "VAL-CTRL-004": {
+      "status": "blocked",
+      "blockedBy": "Supabase credentials missing - cannot test mark done control."
+    },
+    "VAL-CTRL-005": {
+      "status": "blocked",
+      "blockedBy": "Supabase credentials missing - cannot verify persistence."
+    },
+    "VAL-LOG-001": {
+      "status": "blocked",
+      "blockedBy": "Supabase credentials missing - cannot verify message display on load."
+    },
+    "VAL-LOG-002": {
+      "status": "blocked",
+      "blockedBy": "Supabase credentials missing - cannot verify inbound/outbound visual distinction."
+    },
+    "VAL-LOG-004": {
+      "status": "blocked",
+      "blockedBy": "Supabase credentials missing - cannot verify auto-refresh with real data."
+    }
+  },
+  "frictions": [
+    {
+      "description": "Supabase .env.local file is missing from web/ directory. Mission states credentials are 'already configured' but the file does not exist on disk. This blocks 19 out of 24 assertions.",
+      "severity": "blocking"
+    }
+  ],
+  "blockers": [
+    {
+      "description": "web/.env.local file missing - NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY not set. Dashboard shows 'Supabase configuration is missing' error on all data-driven pages.",
+      "rootCause": "Environment file web/.env.local was either never created or was deleted. The gitignore excludes .env files so they are not version-controlled."
+    }
+  ],
+  "toolsUsed": ["agent-browser", "vitest"]
+}
