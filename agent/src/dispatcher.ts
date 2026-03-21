@@ -112,6 +112,14 @@ const MULTI_TASK_SPLIT_RE = /\band\b|,/i;
  */
 const REMIND_PREFIX_RE = /^remind\s+me\s+to\s+/i;
 
+/**
+ * Hedging / uncertainty words that make a task clause ambiguous.
+ * When a multi-task clause contains these, the whole message is treated
+ * as partially ambiguous and the user is asked to resend.
+ */
+const HEDGING_RE =
+  /\b(maybe|perhaps|possibly|might|idk|not\s+sure|sometime|someday|whenever|if\s+i\s+can|probably|i\s+think)\b/i;
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 /** Result of the dispatcher pipeline. */
@@ -494,18 +502,31 @@ export async function dispatch(
   }
 
   // ── (h.5) Lightweight ack for in_progress tasks ──────────────────────
-  if (ACK_RE.test(text) && activeSessions.length > 0) {
-    // Find in_progress task from sessions
-    const session = activeSessions[0];
-    if (session) {
-      await respondAck(responderDeps, session.task_label_snapshot);
+  if (ACK_RE.test(text)) {
+    // First check sessions
+    if (activeSessions.length > 0) {
+      const session = activeSessions[0];
+      if (session) {
+        await respondAck(responderDeps, session.task_label_snapshot);
+        return { handled: true, action: 'ack' };
+      }
+    }
+    // Also check for in_progress todos (e.g. after a reminder fires)
+    const activeTodos = await getActiveTodos(deps.supabase, deps.userId);
+    const inProgressTodo = activeTodos.find((t) => t.status === 'in_progress');
+    if (inProgressTodo) {
+      await respondAck(responderDeps, inProgressTodo.task);
       return { handled: true, action: 'ack' };
     }
   }
 
-  // ── Chatter with no session → ignore ─────────────────────────────────
-  if (CHATTER_RE.test(text) && activeSessions.length === 0) {
-    return { handled: false, action: 'chatter_ignored' };
+  // ── Chatter with no session and no in_progress task → ignore ─────────
+  if (CHATTER_RE.test(text)) {
+    const activeTodos = await getActiveTodos(deps.supabase, deps.userId);
+    const hasInProgress = activeTodos.some((t) => t.status === 'in_progress');
+    if (activeSessions.length === 0 && !hasInProgress) {
+      return { handled: false, action: 'chatter_ignored' };
+    }
   }
 
   // ── (i) Attempt new-task extraction ──────────────────────────────────
@@ -605,8 +626,15 @@ async function handleFollowUp(
  *
  * Handles:
  * - Single tasks with or without time
- * - Multi-task patterns ("X and Y")
+ * - Multi-task patterns ("X and Y", "X, Y")
  * - Partially ambiguous multi-task messages
+ *
+ * Multi-task detection strategy:
+ * 1. First use chrono-node to count distinct time references in the full text.
+ * 2. If multiple time references exist AND there's a conjunction/comma splitting pattern,
+ *    split into clauses and parse each independently.
+ * 3. If ALL clauses have (task text + time), create separate todos.
+ * 4. If SOME clauses are ambiguous (task text or time missing), ask to resend.
  */
 async function tryNewTaskExtraction(
   text: string,
@@ -616,43 +644,63 @@ async function tryNewTaskExtraction(
   // Strip "remind me to" prefix for cleaner parsing
   const cleanedText = text.replace(REMIND_PREFIX_RE, '');
 
-  // Check for multi-task patterns
+  // Check for multi-task patterns using chrono-node time reference count
   if (MULTI_TASK_SPLIT_RE.test(cleanedText)) {
-    const parts = cleanedText.split(MULTI_TASK_SPLIT_RE).map((p) => p.trim()).filter(Boolean);
+    const parts = cleanedText
+      .split(MULTI_TASK_SPLIT_RE)
+      .map((p) => p.trim())
+      .filter(Boolean);
 
     if (parts.length >= 2) {
       // Parse each part separately
       const parsedParts = parts.map((part) => parseTime(part, deps.userTimezone));
 
-      // Check if ALL parts have clear time extraction
-      const allClear = parsedParts.every(
-        (p) => p.date !== null && p.taskText.trim().length > 0,
-      );
+      // Count how many parts have a time reference
+      const partsWithTime = parsedParts.filter((p) => p.date !== null);
 
-      if (allClear) {
-        // Create separate todos for each task
-        for (const parsed of parsedParts) {
-          await createTodo(
-            deps.supabase,
-            deps.userId,
-            parsed.taskText,
-            parsed.date!.toISOString(),
-          );
-          await respondTaskCreated(
-            responderDeps,
-            parsed.taskText,
-            parsed.date!.toISOString(),
-          );
+      // Only treat as multi-task if at least 2 parts have time references
+      // This prevents "buy bread and butter at 5" from being wrongly split
+      if (partsWithTime.length >= 2) {
+        // Check for hedging/uncertainty words in any clause — if found,
+        // the whole message is partially ambiguous (VAL-MULTI-002).
+        const hasHedging = parts.some((part) => HEDGING_RE.test(part));
+
+        if (hasHedging) {
+          // Partially ambiguous — ask to resend
+          await respondResendClearer(responderDeps);
+          return { handled: true, action: 'multi_task' };
         }
-        return { handled: true, action: 'multi_task' };
-      }
 
-      // Check if some parts are ambiguous
-      const someClear = parsedParts.some((p) => p.date !== null);
-      if (someClear && !allClear) {
-        // Partially ambiguous — ask to resend
-        await respondResendClearer(responderDeps);
-        return { handled: true, action: 'multi_task' };
+        // Check if ALL parts have clear time extraction + task text
+        const allClear = parsedParts.every(
+          (p) => p.date !== null && p.taskText.trim().length > 0,
+        );
+
+        if (allClear) {
+          // Create separate todos for each task
+          for (const parsed of parsedParts) {
+            await createTodo(
+              deps.supabase,
+              deps.userId,
+              parsed.taskText,
+              parsed.date!.toISOString(),
+            );
+            await respondTaskCreated(
+              responderDeps,
+              parsed.taskText,
+              parsed.date!.toISOString(),
+            );
+          }
+          return { handled: true, action: 'multi_task' };
+        }
+
+        // Some parts have time, some don't — partially ambiguous
+        const someClear = parsedParts.some((p) => p.date !== null);
+        if (someClear && !allClear) {
+          // Partially ambiguous — ask to resend
+          await respondResendClearer(responderDeps);
+          return { handled: true, action: 'multi_task' };
+        }
       }
     }
   }
@@ -703,6 +751,8 @@ export const _testExports = {
   CHATTER_RE,
   ACK_RE,
   AGENT_PREFIX_RE,
+  HEDGING_RE,
+  MULTI_TASK_SPLIT_RE,
   persistInboundLog,
   getActiveTodos,
   createTodo,
