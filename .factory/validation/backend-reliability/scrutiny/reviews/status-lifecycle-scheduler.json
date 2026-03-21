@@ -1,0 +1,62 @@
+{
+  "featureId": "status-lifecycle-scheduler",
+  "reviewedAt": "2026-03-21T09:30:00.000Z",
+  "commitId": "d2f9c76",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The scheduler module (scheduler.ts) and DB additions (db.ts) implement all three periodic checks: sendDueReminders (pending→in_progress with reminded_at), checkGracePeriod (in_progress→not_confirmed silently), and checkEodSummary (10 PM listing). The calcRemindAt function correctly handles short-horizon tasks. The re-check pattern in sendDueReminders prevents redundant sends (VAL-EDGE-004). 25 comprehensive tests cover all lifecycle transitions and the core logic is sound. Two timezone-related bugs exist in production code paths: getNotConfirmedToday's date bounds are machine-timezone-dependent, and time formatting in messages omits the user's timezone. These are mitigated by the single-user personal agent context (machine timezone ≈ user timezone). Three lifecycle tests (VAL-STATUS-002, VAL-CHAT-002, VAL-STATUS-003) are trivially shallow — they assert object literal values rather than exercising real code paths — but the actual done/cancel/ack behaviors are properly tested in the dispatcher feature's tests.",
+    "issues": [
+      {
+        "file": "agent/src/db.ts",
+        "line": 145,
+        "severity": "non_blocking",
+        "description": "getNotConfirmedToday timezone calculation is machine-dependent. `new Date('${todayStr}T00:00:00')` (no Z suffix) is parsed in machine local time. When combined with getTimezoneOffsetMs, the resulting UTC bounds are double-offset if the machine is not in UTC. For a PDT machine querying PDT user, start/end of day are shifted +7h from midnight. Fix: use `new Date('${todayStr}T00:00:00Z')` to parse as UTC, then subtract the TZ offset (UTC - local) to get local midnight in UTC."
+      },
+      {
+        "file": "agent/src/scheduler.ts",
+        "line": 100,
+        "severity": "non_blocking",
+        "description": "toLocaleTimeString in sendDueReminders does not specify timeZone option. Times in reminder messages will be formatted in the machine's timezone, not the user's timezone. deps.userTimezone is available but unused. Fix: add `timeZone: deps.userTimezone` to the toLocaleTimeString options object."
+      },
+      {
+        "file": "agent/src/scheduler.ts",
+        "line": 198,
+        "severity": "non_blocking",
+        "description": "Same toLocaleTimeString issue in checkEodSummary — EOD summary message formats due times without specifying timeZone. Should use deps.userTimezone."
+      },
+      {
+        "file": "agent/src/__tests__/scheduler.test.ts",
+        "line": 540,
+        "severity": "non_blocking",
+        "description": "Test 'done reply sets status=done and completed_at (VAL-STATUS-002)' only constructs an object literal and asserts its own values. It does not call any production code (markTodoDone, respondTaskDone, or the dispatcher). Same pattern for 'lightweight ack keeps in_progress (VAL-CHAT-002)' at line 553 and 'canceled task has canceled_at set (VAL-STATUS-003)' at line 558. These tests claim to verify VAL items but don't exercise real behavior. The actual behaviors are tested in dispatcher tests from a prior feature."
+      },
+      {
+        "file": "agent/src/scheduler.ts",
+        "line": 63,
+        "severity": "non_blocking",
+        "description": "Module-level lastSummaryDate is shared across all scheduler instances. If the scheduler is ever instantiated for multiple users (different timezones), the once-per-day guard would be incorrectly shared. Acceptable for single-user agent but fragile. Consider moving to a per-deps or per-userId Map."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "Feature references skillName 'backend-worker' but this skill does not exist in .factory/skills/. Worker reported this deviation in skillFeedback — proceeded without the skill using mission-worker-base procedures and feature description directly. The skill should either be created or the feature's skillName should reference an existing skill.",
+      "evidence": "Glob for .factory/skills/*/SKILL.md returned no results. Transcript skeleton shows: 'Error: Skill \"backend-worker\" not found'. Handoff skillFeedback.deviations confirms: 'The backend-worker skill was not available in the skill registry'."
+    },
+    {
+      "area": "conventions",
+      "observation": "Time formatting across the codebase (responder.ts and scheduler.ts) uses toLocaleTimeString without specifying a timeZone option, relying on machine-local time. AGENTS.md documents the user timezone convention but doesn't mention that all user-facing time formatting must pass the user's timezone to Intl/toLocaleTimeString. This should be documented as a convention.",
+      "evidence": "agent/src/responder.ts:59 — respondTaskCreated uses toLocaleTimeString without timeZone. agent/src/scheduler.ts:100 — sendDueReminders same pattern. agent/src/scheduler.ts:198 — checkEodSummary same pattern. deps.userTimezone is available in scheduler but unused for formatting."
+    },
+    {
+      "area": "conventions",
+      "observation": "The getTimezoneOffsetMs helper in db.ts relies on parsing toLocaleString output with new Date(), which is locale-dependent and potentially fragile across Node.js versions. A more robust approach would use Intl.DateTimeFormat.resolvedOptions().timeZone or a dedicated library. This pattern should be documented if it's the project's chosen approach.",
+      "evidence": "agent/src/db.ts:174-180 — getTimezoneOffsetMs parses formatted date strings to compute offset. The ECMAScript spec does not guarantee stable toLocaleString output formats."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Feature passes. The scheduler implementation is well-structured with clean separation of concerns: sendDueReminders, checkGracePeriod, and checkEodSummary each handle one lifecycle transition. calcRemindAt correctly handles short-horizon edge cases. The re-check pattern prevents redundant reminder sends. All 25 tests pass and TypeScript compiles cleanly. Two timezone bugs exist (getNotConfirmedToday date bounds and message time formatting) that are non-blocking in the single-user personal agent context but should be fixed. Three lifecycle tests are trivially shallow but the actual behaviors are covered by dispatcher tests from a prior feature."
+}

@@ -1,0 +1,45 @@
+{
+  "featureId": "input-sanitization-parsing",
+  "reviewedAt": "2026-03-21T09:40:00.000Z",
+  "commitId": "790500c",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Both sanitize.ts and time-parser.ts are well-implemented and thoroughly tested. sanitizeInput correctly handles trailing junk, whitespace collapse, smart quote normalization, dash normalization, and ellipsis normalization while preserving time/date tokens. time-parser.ts uses chrono-node with a custom AM/PM contextual refinement, explicit timezone override support, past-time-to-tomorrow adjustment, and clean task text extraction. 21 sanitize tests and 18 time-parser tests all pass. chrono-node is installed as a dependency. The code follows project conventions (ESM imports, TypeScript strict mode, JSDoc documentation). All 9 validation contracts (VAL-PARSE-001 through 007, VAL-EDGE-001, VAL-EDGE-005) are addressed by the implementation and tests.",
+    "issues": [
+      {
+        "file": "agent/src/time-parser.ts",
+        "line": 79,
+        "severity": "non_blocking",
+        "description": "The AM/PM contextual refiner applies a simple binary rule (before noon = AM, noon or later = PM). This means 'at 7' at 12:01 PM defaults to 7 PM, which is reasonable, but 'at 1' at 12:01 PM defaults to 1 PM (13:00) when the user might mean 1 AM for a late-night reminder. This is an inherent limitation of contextual AM/PM resolution and the spec acknowledges ambiguity, so it's acceptable."
+      },
+      {
+        "file": "agent/src/time-parser.ts",
+        "line": 130,
+        "severity": "non_blocking",
+        "description": "extractTaskText removes time fragments by index position and cleans dangling prepositions. The preposition cleanup regex only handles 'at/on/by/from/until/before/after/around' — other prepositions like 'for' or 'in' could be left dangling in edge cases (e.g., 'meeting for 3pm' → 'meeting for'). Minor edge case."
+      },
+      {
+        "file": "agent/src/__tests__/time-parser.test.ts",
+        "line": 162,
+        "severity": "non_blocking",
+        "description": "VAL-PARSE-007 test proves chrono-node is called before LLM by showing parseTime doesn't accept or call an LLM client. This is a structural test (valid) but doesn't test the dispatcher integration where the actual 'chrono first, LLM fallback' ordering occurs. The dispatcher tests from a later feature cover this integration."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "Feature specifies skillName 'backend-worker' but no such skill exists in .factory/skills/. Worker proceeded without it using mission-worker-base procedures.",
+      "evidence": "features.json has skillName: 'backend-worker'. No .factory/skills/ directory found."
+    },
+    {
+      "area": "knowledge",
+      "observation": "chrono-node has specific parsing behaviors that workers need to know: bare numbers without 'at' prefix may not parse reliably, AM/PM defaults depend on chrono's internal heuristics before the custom refiner runs, and the timezones option expects minute offsets not IANA strings. These details would benefit from documentation in .factory/library/.",
+      "evidence": "time-parser.ts TIMEZONE_OFFSETS maps abbreviations to minutes. Later features (edit-cancel-flows) discovered bare number parsing issues and added workarounds."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The input-sanitization-parsing feature is correctly implemented with sanitize.ts providing robust input cleaning and time-parser.ts providing deterministic chrono-node-based time extraction. All 9 validation contracts are addressed. 39 total tests (21 sanitize + 18 time-parser) cover trailing junk removal, whitespace normalization, timezone defaults, explicit timezone override, no-day defaults, past-time-to-tomorrow, AM/PM contextual resolution, task text cleanup, and chrono-before-LLM ordering. Three non-blocking issues noted: inherent AM/PM ambiguity at boundary hours, limited preposition cleanup, and structural-only LLM-ordering test. No blocking issues found."
+}

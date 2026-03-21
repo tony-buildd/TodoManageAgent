@@ -1,0 +1,50 @@
+{
+  "featureId": "vitest-setup",
+  "reviewedAt": "2026-03-21T09:10:00.000Z",
+  "commitId": "eb1ebb2",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The implementation fully satisfies all feature requirements: vitest is installed as a devDependency, vitest.config.ts has ESM support and path aliases, the __tests__ directory exists with helpers.ts providing mock factories for Supabase, Ollama, and iMessage SDK, a 'test' script is added to package.json, and 8 passing tests verify the setup. Code quality is good with proper TypeScript typing, JSDoc documentation, and well-structured mock factories that expose both the mock client and individual mock functions for test assertions. The worker also created agent/src/types.ts with domain types and .factory/services.yaml with test/typecheck commands, which go slightly beyond scope but are reasonable foundational additions.",
+    "issues": [
+      {
+        "file": "agent/vitest.config.ts",
+        "line": 2,
+        "severity": "non_blocking",
+        "description": "Uses `__dirname` which is not natively available in ESM modules. While Vite's config pipeline handles this transparently (so it works in practice), using `import.meta.dirname` (Node 21+) or `fileURLToPath(import.meta.url)` would be more consistent with the project's ESM-first approach (package.json has \"type\": \"module\")."
+      },
+      {
+        "file": "agent/src/__tests__/helpers.ts",
+        "line": 45,
+        "severity": "non_blocking",
+        "description": "The Supabase mock query builder's `then` implementation only handles the resolve callback (no reject path). If a test uses `.then(onFulfilled, onRejected)` to test error handling, the rejection callback will never fire. Most modern code uses try/catch with await so this is unlikely to cause issues, but the mock could be more complete."
+      },
+      {
+        "file": "agent/src/types.ts",
+        "line": 1,
+        "severity": "non_blocking",
+        "description": "This file was not part of the feature requirements (the feature only asked for vitest infrastructure and mock helpers). Adding domain types is reasonable foundational work, but extends beyond the stated scope. No harm caused."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The feature specifies skillName 'backend-worker' but no such skill exists in .factory/skills/. The worker tried to invoke it and got 'Skill not found'. The worker successfully proceeded using mission.md and AGENTS.md guidance instead, but this means the skill-based procedure was never followed. If backend-worker is expected for future features, the skill file needs to be created.",
+      "evidence": "Transcript skeleton shows: 'Tool: Skill { \"skill\": \"backend-worker\" }' → 'Error: Skill \"backend-worker\" not found'. Handoff skillFeedback.deviations confirms: 'Proceeded without the skill since it was not available in the skill registry'."
+    },
+    {
+      "area": "conventions",
+      "observation": "The worker created .factory/services.yaml from scratch (it didn't exist before this feature). Since this is the first commit in the repo, there's no conflict, but future workers modifying services.yaml should be aware they need to merge with existing content rather than overwrite.",
+      "evidence": "Git diff shows .factory/services.yaml as a new file. No pre-existing services.yaml was present."
+    },
+    {
+      "area": "conventions",
+      "observation": "AGENTS.md documents 'chrono-node — deterministic date/time parsing (to be installed)' under Key Dependencies, but the worker's package.json already includes chrono-node as a dependency. This was likely added by a later feature's commit (eb60a1d or after), but the initial vitest-setup commit's package.json in the diff does not include it. The current package.json on HEAD does include it, indicating another feature added it. No action needed, just noting the dependency was pre-configured in the mission docs.",
+      "evidence": "AGENTS.md lists chrono-node as 'to be installed'; current agent/package.json has '\"chrono-node\": \"^2.9.0\"' in dependencies."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The vitest-setup feature is correctly implemented. All 6 expected behaviors are met: vitest runs successfully with 8 passing tests, vitest.config.ts has ESM support and @/* path aliases, test helpers provide well-typed mock factories for Supabase (with chainable query builder), Ollama (with chat/generate/embed), and iMessage SDK (with send/getMessages/watch), and package.json has vitest in devDependencies with a 'test' script. Three non-blocking issues noted: __dirname usage in ESM context (works via Vite but not idiomatic), incomplete then-mock on Supabase query builder, and out-of-scope types.ts file. One notable skills gap: the backend-worker skill referenced by the feature doesn't exist."
+}

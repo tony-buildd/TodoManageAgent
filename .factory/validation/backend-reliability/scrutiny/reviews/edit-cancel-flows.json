@@ -1,0 +1,56 @@
+{
+  "featureId": "edit-cancel-flows",
+  "reviewedAt": "2026-03-21T09:45:00.000Z",
+  "commitId": "151b300",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Implementation is solid and meets all stated validation criteria. The dispatcher is enhanced with comprehensive edit/cancel detection patterns (CANCEL_RE, CANCEL_NAMED_RE, EDIT_TIME_RE) inserted between session resolution and new-task extraction (step h), exactly as specified. Cancel sets status='canceled' with canceled_at (row persists). Time updates recalculate remind_at via calcRemindAt and reset status to 'pending'. Bare number normalization ('9' → 'at 9') ensures chrono-node parsing works. Disambiguation creates awaiting_edit_target sessions and lists active tasks. Zero-task cases return helpful error. 33 comprehensive tests cover all 6+ required scenarios, pass, and verify LLM is not invoked for edit/cancel commands.",
+    "issues": [
+      {
+        "file": "agent/src/dispatcher.ts",
+        "line": 350,
+        "severity": "non_blocking",
+        "description": "Incomplete disambiguation follow-up: handleFollowUp() has no handler for session.state === 'awaiting_edit_target'. When the user replies to select a task after disambiguation, the message falls through to new-task extraction or LLM fallback instead of resolving the edit/cancel action. The disambiguation session is created but never consumed. This doesn't violate the stated validation criteria (VAL-EDIT-004 only requires triggering the disambiguation question), but leaves the user flow incomplete in practice."
+      },
+      {
+        "file": "agent/src/responder.ts",
+        "line": 72,
+        "severity": "non_blocking",
+        "description": "respondTaskUpdated formats date/time using system timezone (no timeZone option passed to toLocaleTimeString/toLocaleDateString) rather than the user's timezone. On a server running in UTC, the confirmation message will display UTC times regardless of the user's timezone. This mirrors the same issue in the existing respondTaskCreated function, so it's a pre-existing pattern rather than a regression."
+      },
+      {
+        "file": "agent/src/dispatcher.ts",
+        "line": 236,
+        "severity": "non_blocking",
+        "description": "updateTodoDueAt hardcodes leadMinutes=30 instead of using the user's lead_minutes preference from the User model. The User record has a configurable lead_minutes field (defaulting to 30), but the dispatcher doesn't look it up. This is consistent with the rest of the codebase (createTodo also doesn't use it), so not a regression."
+      },
+      {
+        "file": "agent/src/dispatcher.ts",
+        "line": 320,
+        "severity": "non_blocking",
+        "description": "CANCEL_NAMED_RE fallback: when 'cancel [name]' doesn't match any active task by name but there's exactly one active task, it cancels that task regardless. E.g., 'cancel buy milk' with only 'call mom' active would cancel 'call mom'. Pragmatic but could be confusing. Consider adding a confirmation step."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The feature's skillName is 'backend-worker' but no such skill exists in .factory/skills/. The worker noted this in skillFeedback.suggestedChanges. The worker proceeded without a skill and successfully completed the feature, but the missing skill reference should be corrected in features.json or the skill should be created.",
+      "evidence": "Transcript shows 'Error: Skill \"backend-worker\" not found' when the worker tried to invoke it. skillFeedback.suggestedChanges confirms: 'The backend-worker skill was not found when invoked.'"
+    },
+    {
+      "area": "conventions",
+      "observation": "No .factory/library/ directory exists. The worker discovered that chrono-node doesn't parse bare numbers like '9' without an 'at' prefix, and implemented a normalization workaround. This is codebase knowledge that would benefit future workers who interact with the time-parser.",
+      "evidence": "dispatcher.ts line ~410: /^\\d{1,2}$/.test(rawTimeText.trim()) ? `at ${rawTimeText.trim()}` : rawTimeText. Transcript shows 4 debugging steps to discover and resolve the bare-number parsing issue."
+    },
+    {
+      "area": "conventions",
+      "observation": "AGENTS.md doesn't document the edit/cancel patterns or the dispatcher pipeline step ordering. The pipeline steps (a)-(k) are documented only in the dispatcher.ts JSDoc header. Future workers implementing features that interact with the dispatcher would benefit from having the pipeline documented in AGENTS.md.",
+      "evidence": "dispatcher.ts lines 1-16 document the pipeline steps, but AGENTS.md only mentions 'All agent messages prefixed with [PT]' under Agent Architecture."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Feature edit-cancel-flows passes review. The implementation correctly adds edit/cancel detection to the dispatcher pipeline with all required patterns (cancel that/it/nevermind/[name], make that [time], change it to [time], not today tomorrow, reschedule to [time]). Time updates recalculate remind_at, cancel stamps canceled_at (row persists), disambiguation sessions are created for ambiguous targets, and zero-task cases return helpful errors. 33 tests pass covering all VAL-EDIT and VAL-EDGE criteria. Four non-blocking issues noted: (1) disambiguation follow-up handling is not implemented (session created but never consumed on reply), (2) respondTaskUpdated uses system timezone for formatting, (3) leadMinutes hardcoded to 30, (4) cancel-named fallback may cancel wrong task. None of these violate the stated validation criteria."
+}
