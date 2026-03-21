@@ -1,0 +1,53 @@
+{
+  "featureId": "fix-web-timezone-bugs",
+  "reviewedAt": "2026-03-21T11:30:00.000Z",
+  "commitId": "9226d47",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The fix correctly addresses all 3 original blocking/non-blocking issues. (1) localToUTC() in dashboard-client.tsx is simplified to `new Date(dateStr+'T'+timeStr).toISOString()`, eliminating the double-offset bug. (2) dayBoundsUTC() in todo-board.tsx and demo/todos/page.tsx receives the same fix. (3) getUserTimezone() is extracted to web/lib/timezone.ts and all 4 previously-duplicated copies are replaced with imports. The worker also proactively fixed the same double-offset bug in datetimeLocalToISO() in todo-card.tsx. TypeScript typecheck and Next.js build both pass. The commit is clean, atomic, and well-documented.",
+    "issues": [
+      {
+        "file": "web/components/dashboard-client.tsx",
+        "line": 12,
+        "severity": "non_blocking",
+        "description": "Extra blank line left after removing the getUserTimezone() function definition. Two consecutive blank lines remain (cosmetic only)."
+      },
+      {
+        "file": "web/components/dashboard-client.tsx",
+        "line": 41,
+        "severity": "non_blocking",
+        "description": "The `_timezone` parameter is kept but unused in localToUTC(). While the underscore prefix correctly signals intentional non-use, the parameter could be removed entirely since all callers are in the same codebase and were updated in this commit. Same applies to dayBoundsUTC() in todo-board.tsx and demo/todos/page.tsx. Keeping it is acceptable for backward compatibility but adds minor API confusion."
+      },
+      {
+        "file": "web/lib/timezone.ts",
+        "line": 1,
+        "severity": "non_blocking",
+        "description": "No unit tests were added for the shared timezone utility. The worker noted this was verified via typecheck and build only. While acceptable for a bug fix, a simple unit test asserting that getUserTimezone() returns a valid IANA timezone string would improve confidence for future changes."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The frontend-worker skill referenced by the feature (skillName: 'frontend-worker') still does not exist. Worker noted in skillFeedback.suggestedChanges: 'frontend-worker skill was not found/available - had to proceed without it'. This is the third consecutive feature flagging this gap.",
+      "evidence": "Handoff skillFeedback.suggestedChanges: ['frontend-worker skill was not found/available - had to proceed without it']. Prior reviews for web-home-page and web-todos-page flagged the same issue."
+    },
+    {
+      "area": "knowledge",
+      "observation": "The JavaScript Date parsing behavior (`new Date('YYYY-MM-DDThh:mm:ss')` without Z suffix parses as browser-local time, with Z suffix parses as UTC) caused a bug that was replicated in 4 different files across 2 features by different workers. This JS gotcha should be documented in .factory/library/ to prevent recurrence.",
+      "evidence": "The same double-offset bug appeared in localToUTC (dashboard-client.tsx), dayBoundsUTC (todo-board.tsx, demo/todos/page.tsx), and datetimeLocalToISO (todo-card.tsx). All used `new Date(str)` (local parse) then added a UTC offset, doubling the shift."
+    },
+    {
+      "area": "conventions",
+      "observation": "The fix establishes web/lib/timezone.ts as the canonical location for shared browser-side timezone utilities. AGENTS.md could document that shared web utilities belong in web/lib/ to prevent future duplication.",
+      "evidence": "Prior to this fix, getUserTimezone() was duplicated in 4 files. The fix consolidated to web/lib/timezone.ts and all components now import from there."
+    }
+  ],
+  "addressesFailureFrom": [
+    ".factory/validation/web-dashboard/scrutiny/reviews/web-home-page.json",
+    ".factory/validation/web-dashboard/scrutiny/reviews/web-todos-page.json"
+  ],
+  "summary": "PASS. The fix adequately addresses all original failures: (1) localToUTC() double-offset bug in dashboard-client.tsx is fixed by removing redundant offset calculation, (2) dayBoundsUTC() identical bug in todo-board.tsx and demo page is fixed the same way, (3) getUserTimezone() duplication across 4 files is resolved via shared web/lib/timezone.ts. The worker also proactively fixed the same bug in datetimeLocalToISO() in todo-card.tsx. All fixes use the correct approach: since browser TZ equals target TZ, `new Date('YYYY-MM-DDThh:mm:ss').toISOString()` directly produces the correct UTC value. TypeScript typecheck and Next.js build pass. Only non-blocking cosmetic issues remain (extra blank line, unused _timezone parameters, no unit tests for the utility)."
+}
