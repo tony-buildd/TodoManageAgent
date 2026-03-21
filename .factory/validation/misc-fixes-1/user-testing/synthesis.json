@@ -1,0 +1,17 @@
+{
+  "milestone": "misc-fixes-1",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": null,
+  "notes": "The only implementation feature in this milestone (fix-session-resolve-ordering) has an empty fulfills array. No validation contract assertions are mapped to this milestone, so no user testing was required."
+}
