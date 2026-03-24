@@ -1,12 +1,19 @@
 {
-  "name": "photon-todo-agent",
+  "name": "todo-agent",
+  "module": "src/index.ts",
+  "type": "module",
   "private": true,
-  "workspaces": [
-    "agent",
-    "web"
-  ],
   "scripts": {
-    "agent": "npm run start --workspace=agent",
-    "web": "npm run dev --workspace=web"
+    "start": "bun run src/index.ts",
+    "typecheck": "bun x tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@photon-ai/imessage-kit": "^2.1.2"
   }
 }
