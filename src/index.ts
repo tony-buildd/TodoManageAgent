@@ -54,6 +54,28 @@ function buildContext(): ConversationContext {
   return { reminders, history: convo.getHistory() };
 }
 
+function findReminderByTask(taskQuery: string): { id: string; task: string } | null {
+  const data = scheduler.export();
+  const pending = [...(data.scheduled ?? []), ...(data.recurring ?? [])].filter(
+    (r) => r.status === "pending"
+  );
+  const query = taskQuery.toLowerCase();
+  for (const r of pending) {
+    const raw = typeof r.content === "string" ? r.content : (r.content.text ?? "");
+    const task = raw.replace(`${MARKER} Reminder: `, "");
+    if (task.toLowerCase().includes(query) || query.includes(task.toLowerCase())) {
+      return { id: r.id, task };
+    }
+  }
+  // If only one pending reminder, assume it's the one the user means
+  if (pending.length === 1) {
+    const r = pending[0]!;
+    const raw = typeof r.content === "string" ? r.content : (r.content.text ?? "");
+    return { id: r.id, task: raw.replace(`${MARKER} Reminder: `, "") };
+  }
+  return null;
+}
+
 function persist(): void {
   const data = scheduler.export();
   saveReminders(JSON.stringify(data, null, 2));
@@ -233,6 +255,27 @@ async function handleNewMessage(msg: Message): Promise<void> {
     }
 
     const task = result.task?.trim() || text;
+
+    // Handle update/reschedule of an existing reminder
+    if (result.isUpdate && result.timeExpr) {
+      const match = findReminderByTask(task);
+      if (match) {
+        const resolved = resolveTimeExpr(result.timeExpr);
+        if (resolved) {
+          scheduler.reschedule(match.id, resolved);
+          persist();
+          const label = friendlyTime(resolved);
+          await sendAgent(`Updated! "${match.task}" is now set for ${label}`);
+          logger.info(`Rescheduled: "${match.task}" to ${formatDate(resolved)} (${resolved.toISOString()})`);
+        } else {
+          logger.warn(`Could not resolve update timeExpr: "${result.timeExpr}"`);
+          await sendAgent(`I couldn't understand the time "${result.timeExpr}". Try something like "3pm" or "in 2 hours".`);
+        }
+      } else {
+        await sendAgent(`I couldn't find a matching reminder to update. Here are your current reminders:\n${buildContext().reminders || "None"}`);
+      }
+      return;
+    }
 
     if (result.timeExpr) {
       const resolved = resolveTimeExpr(result.timeExpr);

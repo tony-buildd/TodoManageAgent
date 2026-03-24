@@ -31,6 +31,7 @@ function formatContextBlock(ctx?: ConversationContext): string {
 
 export interface ClassifyResult {
   isReminder: boolean;
+  isUpdate?: boolean;
   task?: string;
   timeExpr?: string | null; // raw expression like "8:30 PM", "in 2 hours", "tomorrow 9am"
 }
