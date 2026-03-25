@@ -54,26 +54,33 @@ function buildContext(): ConversationContext {
   return { reminders, history: convo.getHistory() };
 }
 
-function findReminderByTask(taskQuery: string): { id: string; task: string } | null {
+function findRemindersByTask(taskQuery: string): { id: string; task: string; sendAt: string }[] {
   const data = scheduler.export();
   const pending = [...(data.scheduled ?? []), ...(data.recurring ?? [])].filter(
     (r) => r.status === "pending"
   );
   const query = taskQuery.toLowerCase();
-  for (const r of pending) {
+  const matches = pending.filter((r) => {
     const raw = typeof r.content === "string" ? r.content : (r.content.text ?? "");
-    const task = raw.replace(`${MARKER} Reminder: `, "");
-    if (task.toLowerCase().includes(query) || query.includes(task.toLowerCase())) {
-      return { id: r.id, task };
-    }
-  }
-  // If only one pending reminder, assume it's the one the user means
-  if (pending.length === 1) {
+    const task = raw.replace(`${MARKER} Reminder: `, "").toLowerCase();
+    return task.includes(query) || query.includes(task);
+  }).map((r) => ({
+    id: r.id,
+    task: (typeof r.content === "string" ? r.content : (r.content.text ?? "")).replace(`${MARKER} Reminder: `, ""),
+    sendAt: ("sendAt" in r ? r.sendAt : new Date()).toString(),
+  }));
+
+  // If no matches but only one reminder exists, return it
+  if (matches.length === 0 && pending.length === 1) {
     const r = pending[0]!;
     const raw = typeof r.content === "string" ? r.content : (r.content.text ?? "");
-    return { id: r.id, task: raw.replace(`${MARKER} Reminder: `, "") };
+    return [{
+      id: r.id,
+      task: raw.replace(`${MARKER} Reminder: `, ""),
+      sendAt: ("sendAt" in r ? r.sendAt : new Date()).toString(),
+    }];
   }
-  return null;
+  return matches;
 }
 
 function persist(): void {
@@ -236,6 +243,50 @@ async function handleNewMessage(msg: Message): Promise<void> {
     return;
   }
 
+  // --- Handle pending disambiguation (pick a number) ---
+  if (convo.getKind() === "disambiguation") {
+    const numMatch = lower.match(/^#?(\d+)$/);
+    if (numMatch) {
+      const idx = parseInt(numMatch[1]!, 10) - 1;
+      const candidates = convo.getCandidates();
+      const action = convo.getAction();
+      const picked = candidates[idx];
+      if (picked) {
+        if (action === "cancel") {
+          scheduler.cancel(picked.id);
+          persist();
+          convo.clear();
+          await sendAgent(`Cancelled reminder: "${picked.task}"`);
+        } else if (action === "update") {
+          const timeExpr = convo.getNewTimeExpr();
+          if (timeExpr) {
+            const resolved = resolveTimeExpr(timeExpr);
+            if (resolved) {
+              scheduler.reschedule(picked.id, resolved);
+              persist();
+              convo.clear();
+              await sendAgent(`Updated! "${picked.task}" is now set for ${friendlyTime(resolved)}`);
+            } else {
+              convo.clear();
+              await sendAgent(`Couldn't parse the time "${timeExpr}". Try again.`);
+            }
+          } else {
+            convo.clear();
+            await sendAgent(`No time provided for the update. Try again.`);
+          }
+        }
+      } else {
+        await sendAgent(`Invalid choice. Pick a number between 1 and ${candidates.length}.`);
+      }
+    } else if (/^(cancel|nevermind|nvm|back)$/i.test(lower)) {
+      convo.clear();
+      await sendAgent("No problem, cancelled.");
+    } else {
+      await sendAgent(`Please reply with a number (1-${convo.getCandidates().length}) or "cancel".`);
+    }
+    return;
+  }
+
   // --- Handle pending confirmation (yes/no/modification) ---
   if (convo.getKind() === "confirmation") {
     const task = convo.getTask()!;
@@ -359,8 +410,9 @@ async function handleNewMessage(msg: Message): Promise<void> {
 
     // Handle update/reschedule of an existing reminder
     if (result.isUpdate && result.timeExpr) {
-      const match = findReminderByTask(task);
-      if (match) {
+      const matches = findRemindersByTask(task);
+      if (matches.length === 1) {
+        const match = matches[0]!;
         const resolved = resolveTimeExpr(result.timeExpr);
         if (resolved) {
           scheduler.reschedule(match.id, resolved);
@@ -372,6 +424,10 @@ async function handleNewMessage(msg: Message): Promise<void> {
           logger.warn(`Could not resolve update timeExpr: "${result.timeExpr}"`);
           await sendAgent(`I couldn't understand the time "${result.timeExpr}". Try something like "3pm" or "in 2 hours".`);
         }
+      } else if (matches.length > 1) {
+        const list = matches.map((m, i) => `${i + 1}) "${m.task}" at ${formatDate(new Date(m.sendAt))}`).join("\n");
+        convo.enterDisambiguation("update", matches, result.timeExpr);
+        await sendAgent(`Which reminder do you want to update?\n${list}\n\nReply with the number.`);
       } else {
         await sendAgent(`I couldn't find a matching reminder to update. Here are your current reminders:\n${buildContext().reminders || "None"}`);
       }

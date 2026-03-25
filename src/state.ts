@@ -25,7 +25,15 @@ interface PendingConfirmation {
   timeoutId: ReturnType<typeof setTimeout>;
 }
 
-type PendingState = PendingClarification | PendingConfirmation;
+interface PendingDisambiguation {
+  kind: "disambiguation";
+  action: "update" | "cancel";
+  candidates: { id: string; task: string; sendAt: string }[];
+  newTimeExpr?: string;
+  timeoutId: ReturnType<typeof setTimeout>;
+}
+
+type PendingState = PendingClarification | PendingConfirmation | PendingDisambiguation;
 
 export class ConversationState {
   private pending: PendingState | null = null;
@@ -36,7 +44,7 @@ export class ConversationState {
     this.onTimeoutCb = cb;
   }
 
-  getKind(): "clarification" | "confirmation" | null {
+  getKind(): "clarification" | "confirmation" | "disambiguation" | null {
     return this.pending?.kind ?? null;
   }
 
@@ -45,7 +53,8 @@ export class ConversationState {
   }
 
   getTask(): string | null {
-    return this.pending?.task ?? null;
+    if (!this.pending) return null;
+    return "task" in this.pending ? this.pending.task : null;
   }
 
   getAttempt(): number {
@@ -91,6 +100,25 @@ export class ConversationState {
   canRetry(): boolean {
     return this.pending?.kind === "clarification"
       && this.pending.attempt < config.maxClarificationAttempts;
+  }
+
+  enterDisambiguation(action: "update" | "cancel", candidates: { id: string; task: string; sendAt: string }[], newTimeExpr?: string): void {
+    this.clear();
+    const timeoutId = this.startTimeout("disambiguation");
+    this.pending = { kind: "disambiguation", action, candidates, newTimeExpr, timeoutId };
+    logger.info(`Awaiting disambiguation for ${action} (${candidates.length} candidates)`);
+  }
+
+  getCandidates(): { id: string; task: string; sendAt: string }[] {
+    return this.pending?.kind === "disambiguation" ? this.pending.candidates : [];
+  }
+
+  getAction(): "update" | "cancel" | null {
+    return this.pending?.kind === "disambiguation" ? this.pending.action : null;
+  }
+
+  getNewTimeExpr(): string | undefined {
+    return this.pending?.kind === "disambiguation" ? this.pending.newTimeExpr : undefined;
   }
 
   addMessage(role: "user" | "agent", text: string): void {
