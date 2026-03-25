@@ -1,8 +1,8 @@
 import { IMessageSDK, MessageScheduler } from "@photon-ai/imessage-kit";
-import type { Message, ScheduledMessage, RecurringMessage, SendResult } from "@photon-ai/imessage-kit";
+import type { Message, ScheduledMessage, RecurringMessage, SendResult, RecurringScheduleOptions } from "@photon-ai/imessage-kit";
 import { config } from "./config";
 import { logger } from "./logger";
-import { classifyMessage, clarifyTime, chatReply, resolveTimeExpr, extractTimeFromText } from "./parser";
+import { classifyMessage, clarifyTime, chatReply, resolveTimeExpr, extractTimeFromText, resolveRecurringInterval } from "./parser";
 import type { ConversationContext } from "./parser";
 import { saveReminders, loadReminders, saveHistory, loadHistory } from "./store";
 import { ConversationState } from "./state";
@@ -127,6 +127,19 @@ function commitReminder(task: string, sendAt: Date): void {
   const label = friendlyTime(sendAt);
   sendAgent(`Confirmed! I'll remind you to "${task}" ${label}`);
   logger.info(`Scheduled: "${task}" at ${formatDate(sendAt)} (${sendAt.toISOString()})`);
+}
+
+function commitRecurring(task: string, startAt: Date, interval: "daily" | "weekly" | "monthly" | "hourly" | number): void {
+  const content = `${MARKER} Reminder: ${task}`;
+  scheduler.scheduleRecurring({ to: PHONE, content, startAt, interval });
+  persist();
+
+  const intervalLabel = typeof interval === "number"
+    ? `every ${Math.round(interval / 60_000)} minutes`
+    : interval;
+  const label = friendlyTime(startAt);
+  sendAgent(`Recurring reminder set! I'll remind you to "${task}" ${intervalLabel}, starting ${label}`);
+  logger.info(`Recurring: "${task}" ${intervalLabel} starting ${formatDate(startAt)}`);
 }
 
 async function askConfirmation(task: string, sendAt: Date): Promise<void> {
@@ -328,6 +341,21 @@ async function handleNewMessage(msg: Message): Promise<void> {
     }
 
     const task = result.task?.trim() || text;
+
+    // Handle recurring reminders
+    if (result.isRecurring && result.timeExpr) {
+      const resolved = resolveTimeExpr(result.timeExpr);
+      const intervalStr = result.interval || "daily";
+      const recurring = resolveRecurringInterval(intervalStr);
+      if (resolved && recurring) {
+        commitRecurring(task, resolved, recurring.interval);
+      } else if (resolved) {
+        commitRecurring(task, resolved, "daily");
+      } else {
+        await sendAgent(`I couldn't parse the time "${result.timeExpr}". When should the recurring reminder start?`);
+      }
+      return;
+    }
 
     // Handle update/reschedule of an existing reminder
     if (result.isUpdate && result.timeExpr) {

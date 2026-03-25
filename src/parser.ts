@@ -32,6 +32,8 @@ function formatContextBlock(ctx?: ConversationContext): string {
 export interface ClassifyResult {
   isReminder: boolean;
   isUpdate?: boolean;
+  isRecurring?: boolean;
+  interval?: string | null; // "daily", "weekly", "monthly", "hourly", or "every X hours/minutes"
   task?: string;
   timeExpr?: string | null; // raw expression like "8:30 PM", "in 2 hours", "tomorrow 9am"
 }
@@ -372,6 +374,31 @@ export function extractTimeFromText(text: string): string | null {
   // Day of week: "friday 2pm", "monday at 9am"
   const dayMatch = lower.match(/\b((?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b/i);
   if (dayMatch) return dayMatch[1]!.trim();
+
+  return null;
+}
+
+export function resolveRecurringInterval(expr: string): { interval: "daily" | "weekly" | "monthly" | "hourly" | number; startAt: Date } | null {
+  const lower = expr.toLowerCase().trim();
+
+  // "every day at 9am" -> daily, startAt 9am
+  // "every monday at 3pm" -> weekly, startAt next monday 3pm
+  // We use the interval string and resolve startAt from the timeExpr separately
+  if (/^(daily|every\s*day)$/i.test(lower)) return { interval: "daily", startAt: new Date() };
+  if (/^(weekly|every\s*week)$/i.test(lower)) return { interval: "weekly", startAt: new Date() };
+  if (/^(monthly|every\s*month)$/i.test(lower)) return { interval: "monthly", startAt: new Date() };
+  if (/^(hourly|every\s*hour)$/i.test(lower)) return { interval: "hourly", startAt: new Date() };
+
+  // "every X hours/minutes"
+  const everyMatch = lower.match(/^every\s+(\d+)\s*(hours?|hrs?|mins?|minutes?)$/);
+  if (everyMatch) {
+    const amount = parseInt(everyMatch[1]!, 10);
+    const unit = everyMatch[2]!;
+    let ms: number;
+    if (/^(hours?|hrs?)$/.test(unit)) ms = amount * 3_600_000;
+    else ms = amount * 60_000;
+    return { interval: ms, startAt: new Date() };
+  }
 
   return null;
 }
