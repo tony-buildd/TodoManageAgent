@@ -22,7 +22,10 @@ const scheduler = new MessageScheduler(
   { debug: false, checkInterval: 1000 },
   {
     onSent: (_msg: ScheduledMessage | RecurringMessage, _result: SendResult) => {
-      logger.info(`Reminder sent: ${typeof _msg.content === "string" ? _msg.content : _msg.content.text}`);
+      const raw = typeof _msg.content === "string" ? _msg.content : (_msg.content.text ?? "");
+      logger.info(`Reminder sent: ${raw}`);
+      const task = raw.replace(`${MARKER} Reminder: `, "");
+      lastFiredReminder = { task, firedAt: new Date() };
       persist();
     },
     onError: (_msg: ScheduledMessage | RecurringMessage, error: Error) => {
@@ -33,6 +36,7 @@ const scheduler = new MessageScheduler(
 
 const convo = new ConversationState();
 const startTime = Date.now();
+let lastFiredReminder: { task: string; firedAt: Date } | null = null;
 
 function buildContext(): ConversationContext {
   const data = scheduler.export();
@@ -239,6 +243,25 @@ async function handleNewMessage(msg: Message): Promise<void> {
       await sendAgent(`Cancelled reminder: "${task}"`);
     } else {
       await sendAgent(`Couldn't find a reminder matching "${query}". Try "list reminders" to see what you have.`);
+    }
+    return;
+  }
+
+  // Snooze: "snooze", "snooze 10 min", "snooze 1 hour"
+  const snoozeMatch = lower.match(/^snooze(?:\s+(.+))?$/);
+  if (snoozeMatch) {
+    if (!lastFiredReminder || (Date.now() - lastFiredReminder.firedAt.getTime() > 30 * 60_000)) {
+      await sendAgent("Nothing to snooze. Snooze works within 30 minutes of a fired reminder.");
+      return;
+    }
+    const timeStr = snoozeMatch[1]?.trim() || "in 10 minutes";
+    const snoozeTo = resolveTimeExpr(timeStr.startsWith("in ") ? timeStr : `in ${timeStr}`);
+    if (snoozeTo) {
+      commitReminder(lastFiredReminder.task, snoozeTo);
+      lastFiredReminder = null;
+      logger.info(`Snoozed to ${formatDate(snoozeTo)}`);
+    } else {
+      await sendAgent(`Couldn't parse snooze time "${timeStr}". Try "snooze 10 min" or "snooze 1 hour".`);
     }
     return;
   }
