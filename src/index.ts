@@ -156,6 +156,17 @@ async function handleNewMessage(msg: Message): Promise<void> {
   persistHistory();
   const lower = text.toLowerCase();
 
+  // --- Hardcoded commands ---
+  if (/^(list|show|my)\s*(reminders?|todos?)$/i.test(lower) || /^what.*reminder/i.test(lower) || /^reminders?$/i.test(lower)) {
+    const ctx = buildContext();
+    if (ctx.reminders) {
+      await sendAgent(`Your reminders:\n${ctx.reminders}`);
+    } else {
+      await sendAgent("You don't have any reminders right now. Send me one to get started!");
+    }
+    return;
+  }
+
   // --- Handle pending confirmation (yes/no/modification) ---
   if (convo.getKind() === "confirmation") {
     const task = convo.getTask()!;
