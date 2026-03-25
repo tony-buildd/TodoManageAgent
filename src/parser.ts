@@ -226,6 +226,17 @@ export function resolveTimeExpr(expr: string): Date | null {
     return d;
   }
 
+  // "today Xam/pm", "today at X"
+  const todayMatch = lower.match(/^today\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+  if (todayMatch) {
+    const d = new Date(now);
+    const result = setTime(d, todayMatch[1]!, todayMatch[2], todayMatch[3]);
+    if (result && result.getTime() <= now.getTime()) {
+      result.setDate(result.getDate() + 1);
+    }
+    return result;
+  }
+
   // "tomorrow Xam/pm" or "tomorrow at X"
   const tomorrowMatch = lower.match(/^tomorrow\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
   if (tomorrowMatch) {
@@ -310,6 +321,15 @@ function nextDayOfWeek(dayName: string): Date {
 }
 
 // Try to extract a time expression directly from user text as fallback
+const ORDINALS: Record<string, number> = {
+  first: 1, second: 2, third: 3, fourth: 4, fifth: 5,
+  sixth: 6, seventh: 7, eighth: 8, ninth: 9, tenth: 10,
+};
+
+export function ordinalToNumber(word: string): number | null {
+  return ORDINALS[word.toLowerCase()] ?? null;
+}
+
 export function extractTimeFromText(text: string): string | null {
   const lower = text.toLowerCase();
 
@@ -363,6 +383,10 @@ export function extractTimeFromText(text: string): string | null {
   const eodMatch = lower.match(/\b(end\s+of\s+day|eod)\b/i);
   if (eodMatch) return eodMatch[1]!.trim();
 
+  // "today 9am", "today at 3pm"
+  const todayMatch = lower.match(/\b(today\s+(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b/i);
+  if (todayMatch) return todayMatch[1]!.trim();
+
   // "tomorrow 9am", "tomorrow at 3pm"
   const tmrMatch = lower.match(/\b(tomorrow\s+(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b/i);
   if (tmrMatch) return tmrMatch[1]!.trim();
@@ -401,6 +425,30 @@ export function resolveRecurringInterval(expr: string): { interval: "daily" | "w
   }
 
   return null;
+}
+
+export async function splitCommands(text: string, ctx?: ConversationContext): Promise<string[]> {
+  const system = `You split multi-part messages into individual commands. Respond with ONLY a valid JSON array of strings.
+
+Each element should be one standalone command the user wants to execute.
+If the message is a single command, return an array with just that one string.
+
+Examples:
+"Delete the first reminder. Then add a reminder to study at 3pm" -> ["Delete the first reminder", "add a reminder to study at 3pm"]
+"Cancel all reminders and remind me to sleep at 11pm" -> ["Cancel all reminders", "remind me to sleep at 11pm"]
+"Remind me to eat at noon" -> ["Remind me to eat at noon"]
+"Update leetcode to 3pm and add a reminder to read at 5pm" -> ["Update leetcode to 3pm", "add a reminder to read at 5pm"]` + formatContextBlock(ctx);
+
+  try {
+    const raw = await callOllama(system, text);
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((s: unknown) => typeof s === "string")) {
+      return parsed as string[];
+    }
+  } catch {
+    // fallback: return original
+  }
+  return [text];
 }
 
 // --- Ollama calls ---

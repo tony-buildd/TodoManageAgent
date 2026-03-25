@@ -2,7 +2,7 @@ import { IMessageSDK, MessageScheduler } from "@photon-ai/imessage-kit";
 import type { Message, ScheduledMessage, RecurringMessage, SendResult, RecurringScheduleOptions } from "@photon-ai/imessage-kit";
 import { config } from "./config";
 import { logger } from "./logger";
-import { classifyMessage, clarifyTime, chatReply, resolveTimeExpr, extractTimeFromText, resolveRecurringInterval } from "./parser";
+import { classifyMessage, clarifyTime, chatReply, resolveTimeExpr, extractTimeFromText, resolveRecurringInterval, splitCommands, ordinalToNumber } from "./parser";
 import type { ConversationContext } from "./parser";
 import { saveReminders, loadReminders, saveHistory, loadHistory } from "./store";
 import { ConversationState } from "./state";
@@ -153,9 +153,9 @@ function commitRecurring(task: string, startAt: Date, interval: "daily" | "weekl
   logger.info(`Recurring: "${task}" ${intervalLabel} starting ${formatDate(startAt)}`);
 }
 
-async function askConfirmation(task: string, sendAt: Date): Promise<void> {
+async function askConfirmation(task: string, sendAt: Date, updateTargetId?: string): Promise<void> {
   const label = friendlyTime(sendAt);
-  convo.enterConfirmation(task, sendAt);
+  convo.enterConfirmation(task, sendAt, updateTargetId);
   await sendAgent(`Just to confirm:\nTask: "${task}"\nTime: ${label}\n\nIs this correct? (yes/no)`);
 }
 
@@ -179,92 +179,6 @@ async function handleNewMessage(msg: Message): Promise<void> {
   convo.addMessage("user", text);
   persistHistory();
   const lower = text.toLowerCase();
-
-  // --- Hardcoded commands ---
-  if (/^(list|show|my)\s*(reminders?|todos?)$/i.test(lower) || /^what.*reminder/i.test(lower) || /^reminders?$/i.test(lower)) {
-    const ctx = buildContext();
-    if (ctx.reminders) {
-      await sendAgent(`Your reminders:\n${ctx.reminders}`);
-    } else {
-      await sendAgent("You don't have any reminders right now. Send me one to get started!");
-    }
-    return;
-  }
-
-  // Cancel/delete commands: "cancel go to bed", "delete all reminders", "cancel reminder 1"
-  const cancelAllMatch = /^(cancel|delete|remove|clear)\s+(all)\s*(reminders?|todos?)?$/i.test(lower);
-  const cancelMatch = lower.match(/^(?:cancel|delete|remove)\s+(?:the\s+)?(?:reminder\s+(?:for\s+)?)?(.+)$/i);
-  if (cancelAllMatch) {
-    const data = scheduler.export();
-    const pending = [...(data.scheduled ?? []), ...(data.recurring ?? [])].filter(
-      (r) => r.status === "pending"
-    );
-    if (pending.length === 0) {
-      await sendAgent("No reminders to cancel.");
-    } else {
-      let cancelled = 0;
-      for (const r of pending) {
-        if (scheduler.cancel(r.id)) cancelled++;
-      }
-      persist();
-      await sendAgent(`Cancelled ${cancelled} reminder${cancelled !== 1 ? "s" : ""}. You're all clear!`);
-    }
-    return;
-  }
-  if (cancelMatch && !cancelAllMatch) {
-    const query = cancelMatch[1]!.trim();
-    // Try to match by number (e.g. "cancel reminder 1")
-    const numMatch = query.match(/^#?(\d+)$/);
-    const data = scheduler.export();
-    const pending = [...(data.scheduled ?? []), ...(data.recurring ?? [])].filter(
-      (r) => r.status === "pending"
-    );
-    if (pending.length === 0) {
-      await sendAgent("No reminders to cancel.");
-      return;
-    }
-    let target: typeof pending[number] | undefined;
-    if (numMatch) {
-      const idx = parseInt(numMatch[1]!, 10) - 1;
-      target = pending[idx];
-    } else {
-      const q = query.toLowerCase();
-      target = pending.find((r) => {
-        const raw = typeof r.content === "string" ? r.content : (r.content.text ?? "");
-        const task = raw.replace(`${MARKER} Reminder: `, "").toLowerCase();
-        return task.includes(q) || q.includes(task);
-      });
-    }
-    if (target) {
-      const raw = typeof target.content === "string" ? target.content : (target.content.text ?? "");
-      const task = raw.replace(`${MARKER} Reminder: `, "");
-      scheduler.cancel(target.id);
-      persist();
-      await sendAgent(`Cancelled reminder: "${task}"`);
-    } else {
-      await sendAgent(`Couldn't find a reminder matching "${query}". Try "list reminders" to see what you have.`);
-    }
-    return;
-  }
-
-  // Snooze: "snooze", "snooze 10 min", "snooze 1 hour"
-  const snoozeMatch = lower.match(/^snooze(?:\s+(.+))?$/);
-  if (snoozeMatch) {
-    if (!lastFiredReminder || (Date.now() - lastFiredReminder.firedAt.getTime() > 30 * 60_000)) {
-      await sendAgent("Nothing to snooze. Snooze works within 30 minutes of a fired reminder.");
-      return;
-    }
-    const timeStr = snoozeMatch[1]?.trim() || "in 10 minutes";
-    const snoozeTo = resolveTimeExpr(timeStr.startsWith("in ") ? timeStr : `in ${timeStr}`);
-    if (snoozeTo) {
-      commitReminder(lastFiredReminder.task, snoozeTo);
-      lastFiredReminder = null;
-      logger.info(`Snoozed to ${formatDate(snoozeTo)}`);
-    } else {
-      await sendAgent(`Couldn't parse snooze time "${timeStr}". Try "snooze 10 min" or "snooze 1 hour".`);
-    }
-    return;
-  }
 
   // --- Handle pending disambiguation (pick a number) ---
   if (convo.getKind() === "disambiguation") {
@@ -316,49 +230,27 @@ async function handleNewMessage(msg: Message): Promise<void> {
     const sendAt = convo.getSendAt()!;
 
     if (/^(yes|y|yep|yeah|yup|confirm|ok|sure|correct)$/i.test(lower)) {
+      const updateId = convo.getUpdateTargetId();
       convo.clear();
-      commitReminder(task, sendAt);
+      if (updateId) {
+        // This confirmation is for an update -- reschedule instead of creating new
+        scheduler.reschedule(updateId, sendAt);
+        persist();
+        const label = friendlyTime(sendAt);
+        await sendAgent(`Updated! "${task}" is now set for ${label}`);
+        logger.info(`Rescheduled: "${task}" to ${formatDate(sendAt)} (${sendAt.toISOString()})`);
+      } else {
+        commitReminder(task, sendAt);
+      }
     } else if (/^(no|n|nope|nah|cancel|wrong)$/i.test(lower)) {
       convo.clear();
       await sendAgent("Cancelled. Send me a new reminder anytime.");
     } else {
-      // User might be modifying the reminder instead of confirming
-      // Try to extract a new time or re-classify the message
-      const directTime = extractTimeFromText(text);
-      if (directTime) {
-        const resolved = resolveTimeExpr(directTime);
-        if (resolved) {
-          convo.clear();
-          await askConfirmation(task, resolved);
-          return;
-        }
-      }
-
-      // Fall back to full classification with context
-      try {
-        const ctx = buildContext();
-        const result = await classifyMessage(text, ctx);
-        if (result.isReminder && result.timeExpr) {
-          const newTask = result.task?.trim() || task;
-          const resolved = resolveTimeExpr(result.timeExpr);
-          if (resolved) {
-            convo.clear();
-            await askConfirmation(newTask, resolved);
-            return;
-          }
-        }
-        if (result.isReminder && !result.timeExpr) {
-          const newTask = result.task?.trim() || task;
-          convo.clear();
-          convo.enterClarification(newTask);
-          await sendAgent(`When should I remind you to "${newTask}"? (e.g. "3pm", "in 2 hours", "tomorrow 9am")`);
-          return;
-        }
-      } catch (err) {
-        logger.error(`Re-classify during confirmation failed: ${err}`);
-      }
-
-      await sendAgent(`Please reply "yes" to confirm, "no" to cancel, or tell me the new time.`);
+      // Clear the pending confirmation and re-process as a fresh message.
+      // This prevents hijacking when the user sends a new unrelated command.
+      convo.clear();
+      logger.info(`Confirmation interrupted by new message, re-processing: "${text}"`);
+      await processMessage(text);
     }
     return;
   }
@@ -367,14 +259,27 @@ async function handleNewMessage(msg: Message): Promise<void> {
   if (convo.getKind() === "clarification") {
     const task = convo.getTask()!;
 
+    // If the message looks like a new command (not a time reply), break out
+    const looksLikeCommand = /^(remind|cancel|delete|remove|list|show|update|change|snooze)\b/i.test(text)
+      || /^(yes|no|y|n)$/i.test(lower);
+    if (looksLikeCommand) {
+      convo.clear();
+      logger.info(`Clarification interrupted by new command, re-processing: "${text}"`);
+      await processMessage(text);
+      return;
+    }
+
     try {
       const result = await clarifyTime(task, text);
 
       if (result.timeExpr) {
         const resolved = resolveTimeExpr(result.timeExpr);
         if (resolved) {
+          // Check if there's an existing reminder for this task (update vs new)
+          const existing = findRemindersByTask(task);
+          const updateId = existing.length === 1 ? existing[0]!.id : undefined;
           convo.clear();
-          await askConfirmation(task, resolved);
+          await askConfirmation(task, resolved, updateId);
         } else if (convo.canRetry()) {
           convo.incrementAttempt();
           await sendAgent(`I still couldn't figure out the time. When should I remind you to "${task}"? (e.g. "3pm", "in 2 hours", "tomorrow 9am")`);
@@ -397,7 +302,114 @@ async function handleNewMessage(msg: Message): Promise<void> {
     return;
   }
 
-  // --- Normal message: classify with Ollama ---
+  // --- Normal message ---
+  await processMessage(text);
+}
+
+async function processMessage(text: string): Promise<void> {
+  const lower = text.toLowerCase().trim();
+
+  // Check hardcoded commands first (list, cancel, snooze)
+  if (/^(list|show|my)\s*(reminders?|todos?)$/i.test(lower) || /^what.*reminder/i.test(lower) || /^reminders?$/i.test(lower)) {
+    const ctx = buildContext();
+    if (ctx.reminders) {
+      await sendAgent(`Your reminders:\n${ctx.reminders}`);
+    } else {
+      await sendAgent("You don't have any reminders right now. Send me one to get started!");
+    }
+    return;
+  }
+
+  const cancelAllMatch = /^(cancel|delete|remove|clear)\s+(all)\s*(reminders?|todos?)?$/i.test(lower);
+  const cancelMatch = lower.match(/^(?:cancel|delete|remove)\s+(?:the\s+)?(?:reminder\s+(?:for\s+)?)?(.+)$/i);
+  if (cancelAllMatch) {
+    const data = scheduler.export();
+    const pending = [...(data.scheduled ?? []), ...(data.recurring ?? [])].filter(
+      (r) => r.status === "pending"
+    );
+    if (pending.length === 0) {
+      await sendAgent("No reminders to cancel.");
+    } else {
+      let cancelled = 0;
+      for (const r of pending) {
+        if (scheduler.cancel(r.id)) cancelled++;
+      }
+      persist();
+      await sendAgent(`Cancelled ${cancelled} reminder${cancelled !== 1 ? "s" : ""}. You're all clear!`);
+    }
+    return;
+  }
+  if (cancelMatch && !cancelAllMatch) {
+    const query = cancelMatch[1]!.trim();
+    const numMatch = query.match(/^#?(\d+)$/);
+    const data = scheduler.export();
+    const pending = [...(data.scheduled ?? []), ...(data.recurring ?? [])].filter(
+      (r) => r.status === "pending"
+    );
+    if (pending.length === 0) {
+      await sendAgent("No reminders to cancel.");
+      return;
+    }
+    let target: typeof pending[number] | undefined;
+    if (numMatch) {
+      const idx = parseInt(numMatch[1]!, 10) - 1;
+      target = pending[idx];
+    } else if (ordinalToNumber(query) !== null || ordinalToNumber(query.replace(/\s*reminder$/, "")) !== null) {
+      const word = query.replace(/\s*reminder$/, "");
+      const idx = (ordinalToNumber(word) ?? 0) - 1;
+      target = pending[idx];
+    } else {
+      const q = query.toLowerCase();
+      target = pending.find((r) => {
+        const raw = typeof r.content === "string" ? r.content : (r.content.text ?? "");
+        const task = raw.replace(`${MARKER} Reminder: `, "").toLowerCase();
+        return task.includes(q) || q.includes(task);
+      });
+    }
+    if (target) {
+      const raw = typeof target.content === "string" ? target.content : (target.content.text ?? "");
+      const task = raw.replace(`${MARKER} Reminder: `, "");
+      scheduler.cancel(target.id);
+      persist();
+      await sendAgent(`Cancelled reminder: "${task}"`);
+    } else {
+      await sendAgent(`Couldn't find a reminder matching "${query}". Try "list reminders" to see what you have.`);
+    }
+    return;
+  }
+
+  const snoozeMatch = lower.match(/^snooze(?:\s+(.+))?$/);
+  if (snoozeMatch) {
+    if (!lastFiredReminder || (Date.now() - lastFiredReminder.firedAt.getTime() > 30 * 60_000)) {
+      await sendAgent("Nothing to snooze. Snooze works within 30 minutes of a fired reminder.");
+      return;
+    }
+    const timeStr = snoozeMatch[1]?.trim() || "in 10 minutes";
+    const snoozeTo = resolveTimeExpr(timeStr.startsWith("in ") ? timeStr : `in ${timeStr}`);
+    if (snoozeTo) {
+      commitReminder(lastFiredReminder.task, snoozeTo);
+      lastFiredReminder = null;
+    } else {
+      await sendAgent(`Couldn't parse snooze time "${timeStr}". Try "snooze 10 min" or "snooze 1 hour".`);
+    }
+    return;
+  }
+
+  // Check for multi-command messages
+  const hasMultiSignals = /\b(then|and then|also|after that)\b/i.test(text) || /\.\s+[A-Z]/.test(text);
+  if (hasMultiSignals) {
+    const ctx = buildContext();
+    const parts = await splitCommands(text, ctx);
+    if (parts.length > 1) {
+      logger.info(`Split into ${parts.length} commands: ${JSON.stringify(parts)}`);
+      for (const part of parts) {
+        await processMessage(part.trim());
+      }
+      return;
+    }
+  }
+
+  // Classify with Ollama
   logger.info("Processing...");
 
   try {

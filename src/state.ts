@@ -22,6 +22,7 @@ interface PendingConfirmation {
   kind: "confirmation";
   task: string;
   sendAt: Date;
+  updateTargetId?: string;
   timeoutId: ReturnType<typeof setTimeout>;
 }
 
@@ -72,11 +73,15 @@ export class ConversationState {
     logger.info(`Awaiting clarification for: "${task}" (attempt 1)`);
   }
 
-  enterConfirmation(task: string, sendAt: Date): void {
+  enterConfirmation(task: string, sendAt: Date, updateTargetId?: string): void {
     this.clear();
     const timeoutId = this.startTimeout(task);
-    this.pending = { kind: "confirmation", task, sendAt, timeoutId };
-    logger.info(`Awaiting confirmation for: "${task}" at ${sendAt.toISOString()}`);
+    this.pending = { kind: "confirmation", task, sendAt, updateTargetId, timeoutId };
+    logger.info(`Awaiting confirmation for: "${task}" at ${sendAt.toISOString()}${updateTargetId ? " (update)" : ""}`);
+  }
+
+  getUpdateTargetId(): string | null {
+    return this.pending?.kind === "confirmation" ? (this.pending.updateTargetId ?? null) : null;
   }
 
   incrementAttempt(): void {
