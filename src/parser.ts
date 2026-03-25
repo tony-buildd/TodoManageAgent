@@ -119,12 +119,129 @@ export function resolveTimeExpr(expr: string): Date | null {
     if (ms !== null) return new Date(now.getTime() + ms);
   }
 
+  // "in 1.5 hours", "in 2.5 minutes" (decimal relative)
+  const decimalRelMatch = lower.match(/^in\s+(\d+(?:\.\d+))\s*(seconds?|mins?|minutes?|hours?|hrs?|days?|weeks?)$/);
+  if (decimalRelMatch) {
+    const amount = parseFloat(decimalRelMatch[1]!);
+    const unit = decimalRelMatch[2]!;
+    const ms = unitToMs(unit, amount);
+    if (ms !== null) return new Date(now.getTime() + ms);
+  }
+
+  // "in an hour", "in a minute"
+  if (/^in\s+an?\s+hour$/.test(lower)) {
+    return new Date(now.getTime() + 3_600_000);
+  }
+  if (/^in\s+an?\s+minute$/.test(lower)) {
+    return new Date(now.getTime() + 60_000);
+  }
+
+  // "in half an hour"
+  if (/^in\s+half\s+an?\s+hour$/.test(lower)) {
+    return new Date(now.getTime() + 1_800_000);
+  }
+
+  // "in a few minutes" (default ~5 minutes)
+  if (/^in\s+a\s+few\s+minutes$/.test(lower)) {
+    return new Date(now.getTime() + 5 * 60_000);
+  }
+
+  // "in an hour and a half", "in an hour and 30 minutes"
+  const hourAndHalfMatch = lower.match(/^in\s+an?\s+hour\s+and\s+a\s+half$/);
+  if (hourAndHalfMatch) {
+    return new Date(now.getTime() + 90 * 60_000);
+  }
+
+  const hourAndMinMatch = lower.match(/^in\s+an?\s+hour\s+and\s+(\d+)\s*(mins?|minutes?)$/);
+  if (hourAndMinMatch) {
+    const mins = parseInt(hourAndMinMatch[1]!, 10);
+    return new Date(now.getTime() + (60 + mins) * 60_000);
+  }
+
+  // "in X hours and Y minutes", "in X hours and a half"
+  const hoursAndMinMatch = lower.match(/^in\s+(\d+)\s*(?:hours?|hrs?)\s+and\s+(\d+)\s*(mins?|minutes?)$/);
+  if (hoursAndMinMatch) {
+    const hours = parseInt(hoursAndMinMatch[1]!, 10);
+    const mins = parseInt(hoursAndMinMatch[2]!, 10);
+    return new Date(now.getTime() + (hours * 60 + mins) * 60_000);
+  }
+  const hoursAndHalfMatch = lower.match(/^in\s+(\d+)\s*(?:hours?|hrs?)\s+and\s+a\s+half$/);
+  if (hoursAndHalfMatch) {
+    const hours = parseInt(hoursAndHalfMatch[1]!, 10);
+    return new Date(now.getTime() + (hours * 60 + 30) * 60_000);
+  }
+
+  // "noon"
+  if (lower === "noon") {
+    const d = new Date(now);
+    d.setHours(12, 0, 0, 0);
+    if (d.getTime() <= now.getTime()) d.setDate(d.getDate() + 1);
+    return d;
+  }
+
+  // "midnight"
+  if (lower === "midnight") {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  // "end of day" / "eod" (default 6pm)
+  if (/^(end\s+of\s+day|eod)$/.test(lower)) {
+    const d = new Date(now);
+    d.setHours(18, 0, 0, 0);
+    if (d.getTime() <= now.getTime()) d.setDate(d.getDate() + 1);
+    return d;
+  }
+
+  // "tonight" or "tonight at X" or "this evening" / "this evening at X"
+  const tonightAtMatch = lower.match(/^(?:tonight|this\s+evening)\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+  if (tonightAtMatch) {
+    const d = new Date(now);
+    return setTime(d, tonightAtMatch[1]!, tonightAtMatch[2], tonightAtMatch[3] || "pm");
+  }
+  if (/^(tonight|this\s+evening)$/.test(lower)) {
+    const d = new Date(now);
+    d.setHours(20, 0, 0, 0);
+    if (d.getTime() <= now.getTime()) d.setDate(d.getDate() + 1);
+    return d;
+  }
+
+  // "this morning" (default 9am)
+  if (/^this\s+morning$/.test(lower)) {
+    const d = new Date(now);
+    d.setHours(9, 0, 0, 0);
+    if (d.getTime() <= now.getTime()) d.setDate(d.getDate() + 1);
+    return d;
+  }
+
+  // "this afternoon" (default 2pm)
+  if (/^this\s+afternoon$/.test(lower)) {
+    const d = new Date(now);
+    d.setHours(14, 0, 0, 0);
+    if (d.getTime() <= now.getTime()) d.setDate(d.getDate() + 1);
+    return d;
+  }
+
   // "tomorrow Xam/pm" or "tomorrow at X"
   const tomorrowMatch = lower.match(/^tomorrow\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
   if (tomorrowMatch) {
     const d = new Date(now);
     d.setDate(d.getDate() + 1);
     return setTime(d, tomorrowMatch[1]!, tomorrowMatch[2], tomorrowMatch[3]);
+  }
+
+  // "next tuesday", "next friday at 3pm"
+  const nextDayMatch = lower.match(/^next\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?)?$/);
+  if (nextDayMatch) {
+    const d = nextDayOfWeek(nextDayMatch[1]!);
+    if (nextDayMatch[2]) {
+      return setTime(d, nextDayMatch[2]!, nextDayMatch[3], nextDayMatch[4]);
+    }
+    // No time specified -- default to 9am
+    d.setHours(9, 0, 0, 0);
+    return d;
   }
 
   // Day of week: "monday 3pm", "friday at 2:30 pm"
@@ -198,13 +315,59 @@ export function extractTimeFromText(text: string): string | null {
   const atMatch = lower.match(/\bat\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm))\b/i);
   if (atMatch) return atMatch[1]!.trim();
 
+  // "in an hour and a half", "in an hour and 30 minutes"
+  const inHourAndMatch = lower.match(/\b(in\s+an?\s+hour\s+and\s+(?:a\s+half|\d+\s*(?:mins?|minutes?)))\b/i);
+  if (inHourAndMatch) return inHourAndMatch[1]!.trim();
+
+  // "in X hours and Y minutes", "in X hours and a half"
+  const inHoursAndMatch = lower.match(/\b(in\s+\d+\s*(?:hours?|hrs?)\s+and\s+(?:a\s+half|\d+\s*(?:mins?|minutes?)))\b/i);
+  if (inHoursAndMatch) return inHoursAndMatch[1]!.trim();
+
+  // "in 1.5 hours", "in 2.5 minutes" (decimal)
+  const inDecimalMatch = lower.match(/\b(in\s+\d+(?:\.\d+)\s*(?:seconds?|mins?|minutes?|hours?|hrs?|days?|weeks?))\b/i);
+  if (inDecimalMatch) return inDecimalMatch[1]!.trim();
+
+  // "in an hour", "in a minute"
+  const inAnMatch = lower.match(/\b(in\s+an?\s+(?:hour|minute))\b/i);
+  if (inAnMatch) return inAnMatch[1]!.trim();
+
+  // "in half an hour"
+  const inHalfMatch = lower.match(/\b(in\s+half\s+an?\s+hour)\b/i);
+  if (inHalfMatch) return inHalfMatch[1]!.trim();
+
+  // "in a few minutes"
+  const inFewMatch = lower.match(/\b(in\s+a\s+few\s+minutes)\b/i);
+  if (inFewMatch) return inFewMatch[1]!.trim();
+
   // "in 2 hours", "in 30 minutes"
   const inMatch = lower.match(/\b(in\s+\d+\s*(?:seconds?|mins?|minutes?|hours?|hrs?|days?|weeks?))\b/i);
   if (inMatch) return inMatch[1]!.trim();
 
+  // "tonight at 9", "tonight", "this evening", "this evening at 8"
+  const tonightAtMatch = lower.match(/\b((?:tonight|this\s+evening)\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b/i);
+  if (tonightAtMatch) return tonightAtMatch[1]!.trim();
+  const tonightMatch = lower.match(/\b(tonight|this\s+evening)\b/i);
+  if (tonightMatch) return tonightMatch[1]!.trim();
+
+  // "this morning", "this afternoon"
+  const periodMatch = lower.match(/\b(this\s+(?:morning|afternoon))\b/i);
+  if (periodMatch) return periodMatch[1]!.trim();
+
+  // "noon", "midnight"
+  const noonMidMatch = lower.match(/\b(noon|midnight)\b/i);
+  if (noonMidMatch) return noonMidMatch[1]!.trim();
+
+  // "end of day", "eod"
+  const eodMatch = lower.match(/\b(end\s+of\s+day|eod)\b/i);
+  if (eodMatch) return eodMatch[1]!.trim();
+
   // "tomorrow 9am", "tomorrow at 3pm"
   const tmrMatch = lower.match(/\b(tomorrow\s+(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b/i);
   if (tmrMatch) return tmrMatch[1]!.trim();
+
+  // "next tuesday", "next friday at 3pm"
+  const nextDayMatch = lower.match(/\b(next\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\s+(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?)\b/i);
+  if (nextDayMatch) return nextDayMatch[1]!.trim();
 
   // Day of week: "friday 2pm", "monday at 9am"
   const dayMatch = lower.match(/\b((?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b/i);
