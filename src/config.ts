@@ -6,7 +6,7 @@ if (!PHONE_NUMBER) {
 
 export const config = {
   phoneNumber: PHONE_NUMBER,
-  ollamaModel: process.env.OLLAMA_MODEL ?? "llama3.2:3b",
+  ollamaModel: process.env.OLLAMA_MODEL ?? "qwen3-vl:8b",
   ollamaUrl: process.env.OLLAMA_URL ?? "http://localhost:11434",
   agentMarker: "[todo-agent]",
   clarificationTimeoutMs: 5 * 60 * 1000,
