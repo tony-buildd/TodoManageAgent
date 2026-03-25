@@ -104,6 +104,22 @@ export class ConversationState {
     return [...this.history];
   }
 
+  exportHistory(): string {
+    return JSON.stringify(this.history, null, 2);
+  }
+
+  importHistory(json: string): void {
+    try {
+      const entries: HistoryEntry[] = JSON.parse(json);
+      if (Array.isArray(entries)) {
+        this.history = entries.slice(-MAX_HISTORY);
+        logger.info(`Imported ${this.history.length} history entries.`);
+      }
+    } catch (err) {
+      logger.error("Failed to import history:", err);
+    }
+  }
+
   private startTimeout(task: string): ReturnType<typeof setTimeout> {
     return setTimeout(() => {
       logger.info(`State timed out for: "${task}"`);

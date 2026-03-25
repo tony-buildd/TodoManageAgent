@@ -36,3 +36,5 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # agent persistence
 reminders.json
 reminders.json.tmp
+history.json
+history.json.tmp

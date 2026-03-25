@@ -13,4 +13,5 @@ export const config = {
   maxClarificationAttempts: 2,
   watcherPollInterval: 2000,
   persistencePath: "reminders.json",
+  historyPath: "history.json",
 } as const;

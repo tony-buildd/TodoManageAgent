@@ -4,7 +4,7 @@ import { config } from "./config";
 import { logger } from "./logger";
 import { classifyMessage, clarifyTime, chatReply, resolveTimeExpr, extractTimeFromText } from "./parser";
 import type { ConversationContext } from "./parser";
-import { saveReminders, loadReminders } from "./store";
+import { saveReminders, loadReminders, saveHistory, loadHistory } from "./store";
 import { ConversationState } from "./state";
 
 const MARKER = config.agentMarker;
@@ -85,9 +85,14 @@ async function sendAgent(text: string): Promise<void> {
   try {
     await sdk.send(PHONE, `${MARKER} ${text}`);
     convo.addMessage("agent", text);
+    persistHistory();
   } catch (err) {
     logger.error(`Failed to send iMessage: ${err}`);
   }
+}
+
+function persistHistory(): void {
+  saveHistory(convo.exportHistory());
 }
 
 function formatDate(date: Date): string {
@@ -148,6 +153,7 @@ async function handleNewMessage(msg: Message): Promise<void> {
 
   logger.info(`Received: "${text}"`);
   convo.addMessage("user", text);
+  persistHistory();
   const lower = text.toLowerCase();
 
   // --- Handle pending confirmation (yes/no/modification) ---
@@ -372,6 +378,12 @@ async function startup(): Promise<void> {
     }
   }
 
+  // Restore conversation history
+  const savedHistory = loadHistory();
+  if (savedHistory) {
+    convo.importHistory(savedHistory);
+  }
+
   // Start watching
   await sdk.startWatching({
     onMessage: handleNewMessage,
@@ -387,6 +399,7 @@ async function startup(): Promise<void> {
 process.on("SIGINT", async () => {
   logger.info("Shutting down...");
   persist();
+  persistHistory();
   scheduler.destroy();
   sdk.stopWatching();
   await sdk.close();
@@ -396,6 +409,7 @@ process.on("SIGINT", async () => {
 process.on("SIGTERM", async () => {
   logger.info("Shutting down...");
   persist();
+  persistHistory();
   scheduler.destroy();
   sdk.stopWatching();
   await sdk.close();
