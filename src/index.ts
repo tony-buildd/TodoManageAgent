@@ -396,7 +396,7 @@ async function processMessage(text: string): Promise<void> {
   }
 
   // Check for multi-command messages
-  const hasMultiSignals = /\b(then|and then|also|after that)\b/i.test(text) || /\.\s+[A-Z]/.test(text);
+  const hasMultiSignals = /\b(then|and then|also|after that|another)\b/i.test(text) || /\.\s+[A-Z]/.test(text);
   if (hasMultiSignals) {
     const ctx = buildContext();
     const parts = await splitCommands(text, ctx);

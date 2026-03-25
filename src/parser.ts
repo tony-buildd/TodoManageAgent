@@ -458,7 +458,21 @@ export async function classifyMessage(text: string, ctx?: ConversationContext): 
   const raw = await callOllama(system, text);
 
   logger.info(`Ollama classify response: ${raw}`);
-  const result = JSON.parse(raw) as ClassifyResult;
+  const parsed = JSON.parse(raw);
+
+  // If the LLM returned arrays (multiple reminders in one response), normalize to first item
+  if (Array.isArray(parsed.task) || Array.isArray(parsed.timeExpr)) {
+    const tasks = Array.isArray(parsed.task) ? parsed.task : [parsed.task];
+    const times = Array.isArray(parsed.timeExpr) ? parsed.timeExpr : [parsed.timeExpr];
+    // Return just the first one; the multi-command splitter should handle the rest
+    parsed.task = tasks[0] ?? "";
+    parsed.timeExpr = times[0] ?? null;
+    // Force strings
+    if (typeof parsed.task !== "string") parsed.task = String(parsed.task);
+    if (parsed.timeExpr !== null && typeof parsed.timeExpr !== "string") parsed.timeExpr = String(parsed.timeExpr);
+  }
+
+  const result = parsed as ClassifyResult;
 
   // If Ollama returned a timeExpr that doesn't resolve, try extracting directly from text
   if (result.isReminder && result.timeExpr) {
