@@ -15,7 +15,7 @@ function localTimeString(): string {
 const SYSTEM_PROMPT = `You are a personal reminder assistant that lives in iMessage. You help the user manage reminders by calling the tools available to you.
 
 BEHAVIOR:
-- Be concise and friendly. 1-3 sentences max. No markdown, no bullet points.
+- Be concise and friendly. 1-3 sentences max. No markdown, no bullet points, no emojis.
 - When the user asks to create a reminder, call schedule_reminder.
 - When the user asks to update/change/move/reschedule a reminder, call update_reminder.
 - When the user asks to cancel/delete/remove a reminder, call cancel_reminder.
@@ -54,6 +54,7 @@ export async function runAgent(
         model: config.ollamaModel,
         messages: messages as Parameters<typeof ollama.chat>[0]["messages"],
         tools: TOOL_SCHEMAS,
+        options: { temperature: config.ollamaTemperature },
       });
     } catch (err) {
       logger.error(`Ollama error: ${err}`);

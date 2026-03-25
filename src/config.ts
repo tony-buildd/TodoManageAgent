@@ -10,6 +10,7 @@ export const config = {
   ollamaUrl: process.env.OLLAMA_URL ?? "http://localhost:11434",
   agentMarker: "[todo-agent]",
   maxAgentTurns: 10,
+  ollamaTemperature: 0.7,
   maxMessageLength: 500,
   watcherPollInterval: 2000,
   persistencePath: "reminders.json",
