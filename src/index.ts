@@ -167,6 +167,62 @@ async function handleNewMessage(msg: Message): Promise<void> {
     return;
   }
 
+  // Cancel/delete commands: "cancel go to bed", "delete all reminders", "cancel reminder 1"
+  const cancelAllMatch = /^(cancel|delete|remove|clear)\s+(all)\s*(reminders?|todos?)?$/i.test(lower);
+  const cancelMatch = lower.match(/^(?:cancel|delete|remove)\s+(?:the\s+)?(?:reminder\s+(?:for\s+)?)?(.+)$/i);
+  if (cancelAllMatch) {
+    const data = scheduler.export();
+    const pending = [...(data.scheduled ?? []), ...(data.recurring ?? [])].filter(
+      (r) => r.status === "pending"
+    );
+    if (pending.length === 0) {
+      await sendAgent("No reminders to cancel.");
+    } else {
+      let cancelled = 0;
+      for (const r of pending) {
+        if (scheduler.cancel(r.id)) cancelled++;
+      }
+      persist();
+      await sendAgent(`Cancelled ${cancelled} reminder${cancelled !== 1 ? "s" : ""}. You're all clear!`);
+    }
+    return;
+  }
+  if (cancelMatch && !cancelAllMatch) {
+    const query = cancelMatch[1]!.trim();
+    // Try to match by number (e.g. "cancel reminder 1")
+    const numMatch = query.match(/^#?(\d+)$/);
+    const data = scheduler.export();
+    const pending = [...(data.scheduled ?? []), ...(data.recurring ?? [])].filter(
+      (r) => r.status === "pending"
+    );
+    if (pending.length === 0) {
+      await sendAgent("No reminders to cancel.");
+      return;
+    }
+    let target: typeof pending[number] | undefined;
+    if (numMatch) {
+      const idx = parseInt(numMatch[1]!, 10) - 1;
+      target = pending[idx];
+    } else {
+      const q = query.toLowerCase();
+      target = pending.find((r) => {
+        const raw = typeof r.content === "string" ? r.content : (r.content.text ?? "");
+        const task = raw.replace(`${MARKER} Reminder: `, "").toLowerCase();
+        return task.includes(q) || q.includes(task);
+      });
+    }
+    if (target) {
+      const raw = typeof target.content === "string" ? target.content : (target.content.text ?? "");
+      const task = raw.replace(`${MARKER} Reminder: `, "");
+      scheduler.cancel(target.id);
+      persist();
+      await sendAgent(`Cancelled reminder: "${task}"`);
+    } else {
+      await sendAgent(`Couldn't find a reminder matching "${query}". Try "list reminders" to see what you have.`);
+    }
+    return;
+  }
+
   // --- Handle pending confirmation (yes/no/modification) ---
   if (convo.getKind() === "confirmation") {
     const task = convo.getTask()!;
