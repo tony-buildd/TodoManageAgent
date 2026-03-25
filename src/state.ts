@@ -29,7 +29,11 @@ export class MessageHistory {
     try {
       const entries = JSON.parse(json);
       if (Array.isArray(entries)) {
-        this.messages = entries.slice(-MAX_HISTORY);
+        // Handle old format migration (role: "agent" → "assistant", text → content)
+        this.messages = entries.slice(-MAX_HISTORY).map((e: Record<string, unknown>) => ({
+          role: (e.role === "agent" ? "assistant" : e.role) as "user" | "assistant",
+          content: (e.content ?? e.text ?? "") as string,
+        }));
         logger.info(`Imported ${this.messages.length} history entries.`);
       }
     } catch (err) {

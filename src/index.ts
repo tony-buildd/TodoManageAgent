@@ -113,9 +113,14 @@ async function handleNewMessage(msg: Message): Promise<void> {
   persistHistory();
 
   const remindersContext = buildRemindersContext();
-  const reply = await runAgent(text, history.getMessages(), remindersContext, toolDeps);
 
-  await sendAgent(reply);
+  try {
+    const reply = await runAgent(text, history.getMessages(), remindersContext, toolDeps);
+    await sendAgent(reply);
+  } catch (err) {
+    logger.error(`Agent error: ${err}`);
+    await sendAgent("Sorry, something went wrong. Please try again.");
+  }
 }
 
 async function startup(): Promise<void> {
