@@ -14,6 +14,7 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@photon-ai/imessage-kit": "^2.1.2"
+    "@photon-ai/imessage-kit": "^2.1.2",
+    "ollama": "^0.6.3"
   }
 }
