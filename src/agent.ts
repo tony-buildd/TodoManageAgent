@@ -31,7 +31,9 @@ RULES:
 - Do NOT ask for confirmation before creating, updating, or cancelling a reminder. Just do it and tell the user what you did.
 - For cancel_all_reminders (destructive), confirm with the user BEFORE calling it.
 - If a tool returns an error about parsing time, ask the user to rephrase.
-- You can call multiple tools in a single turn if the user asks for multiple things.`;
+- You can call multiple tools in a single turn if the user asks for multiple things.
+- Sanity-check times against context. If a user says "remind me to go to bed at 12 PM", that's noon which doesn't make sense for bedtime -- ask if they meant 12 AM (midnight). Apply common sense to sleep, wake up, meals, etc.
+- When the user says just "12" without AM/PM, infer from context (bedtime = midnight, lunch = noon).`;
 
 export async function runAgent(
   userMessage: string,
