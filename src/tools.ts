@@ -8,13 +8,13 @@ export const TOOL_SCHEMAS: Tool[] = [
     type: "function",
     function: {
       name: "schedule_reminder",
-      description: "Create a new one-time reminder for the user.",
+      description: "Create a one-time reminder.",
       parameters: {
         type: "object",
         required: ["task", "time"],
         properties: {
           task: { type: "string", description: "What to remind about" },
-          time: { type: "string", description: "When to remind. Copy the user's time expression exactly, e.g. '3pm', 'tomorrow 9am', 'in 2 hours', 'tonight', 'noon'" },
+          time: { type: "string", description: "When (copy user's words exactly)" },
         },
       },
     },
@@ -23,14 +23,14 @@ export const TOOL_SCHEMAS: Tool[] = [
     type: "function",
     function: {
       name: "schedule_recurring",
-      description: "Create a recurring reminder that repeats on a schedule.",
+      description: "Create a recurring reminder.",
       parameters: {
         type: "object",
         required: ["task", "time", "interval"],
         properties: {
           task: { type: "string", description: "What to remind about" },
-          time: { type: "string", description: "When the first reminder should fire, e.g. '9am', '3pm'" },
-          interval: { type: "string", description: "How often to repeat: 'daily', 'weekly', 'monthly', 'hourly', or 'every N hours/minutes'" },
+          time: { type: "string", description: "Start time" },
+          interval: { type: "string", description: "daily, weekly, monthly, hourly, or every N hours/minutes" },
         },
       },
     },
@@ -39,13 +39,13 @@ export const TOOL_SCHEMAS: Tool[] = [
     type: "function",
     function: {
       name: "update_reminder",
-      description: "Change the time of an existing reminder. Use the task name to identify which reminder to update.",
+      description: "Change the time of an existing reminder.",
       parameters: {
         type: "object",
         required: ["task_query", "new_time"],
         properties: {
-          task_query: { type: "string", description: "The name or partial name of the reminder to update" },
-          new_time: { type: "string", description: "The new time, e.g. '3pm', 'tomorrow 9am'" },
+          task_query: { type: "string", description: "Name or partial name to match" },
+          new_time: { type: "string", description: "New time" },
         },
       },
     },
@@ -54,12 +54,12 @@ export const TOOL_SCHEMAS: Tool[] = [
     type: "function",
     function: {
       name: "cancel_reminder",
-      description: "Cancel/delete a specific reminder by name or number.",
+      description: "Cancel a specific reminder by name or number.",
       parameters: {
         type: "object",
         required: ["target"],
         properties: {
-          target: { type: "string", description: "The task name, partial name, or number (e.g. '1', '2') of the reminder to cancel" },
+          target: { type: "string", description: "Task name, partial name, or number (1, 2, ...)" },
         },
       },
     },
@@ -68,33 +68,27 @@ export const TOOL_SCHEMAS: Tool[] = [
     type: "function",
     function: {
       name: "cancel_all_reminders",
-      description: "Cancel ALL reminders. This is destructive and cannot be undone.",
-      parameters: {
-        type: "object",
-        properties: {},
-      },
+      description: "Cancel ALL reminders. Destructive.",
+      parameters: { type: "object", properties: {} },
     },
   },
   {
     type: "function",
     function: {
       name: "list_reminders",
-      description: "List all currently scheduled reminders with their times.",
-      parameters: {
-        type: "object",
-        properties: {},
-      },
+      description: "List all pending reminders.",
+      parameters: { type: "object", properties: {} },
     },
   },
   {
     type: "function",
     function: {
       name: "snooze",
-      description: "Snooze the most recently fired reminder. Only works within 30 minutes of a reminder firing.",
+      description: "Snooze the last fired reminder. Works within 30 min of firing.",
       parameters: {
         type: "object",
         properties: {
-          duration: { type: "string", description: "How long to snooze, e.g. '10 minutes', '1 hour'. Defaults to '10 minutes'." },
+          duration: { type: "string", description: "e.g. 10 minutes, 1 hour. Default: 10 minutes" },
         },
       },
     },
