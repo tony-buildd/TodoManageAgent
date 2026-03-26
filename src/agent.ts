@@ -81,6 +81,7 @@ export async function runAgent(
         messages: messages as Parameters<typeof ollama.chat>[0]["messages"],
         tools: TOOL_SCHEMAS,
         options: { temperature: config.ollamaTemperature },
+        keep_alive: "10m",
       });
     } catch (err) {
       logger.error(`Ollama error: ${err}`);
