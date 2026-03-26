@@ -111,7 +111,13 @@ export async function runAgent(
       const toolArgs = (call.function.arguments ?? {}) as Record<string, unknown>;
       logger.info(`Tool call: ${toolName}(${JSON.stringify(toolArgs)})`);
 
-      const result = await executeTool(toolName, toolArgs, deps);
+      let result: string;
+      try {
+        result = await executeTool(toolName, toolArgs, deps);
+      } catch (err) {
+        logger.error(`Tool execution error: ${err}`);
+        result = `Tool "${toolName}" failed: ${err instanceof Error ? err.message : String(err)}. Try a different approach.`;
+      }
       logger.info(`Tool result: ${result}`);
 
       messages.push({
