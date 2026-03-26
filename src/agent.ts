@@ -33,7 +33,33 @@ RULES:
 - If a tool returns an error about parsing time, ask the user to rephrase.
 - You can call multiple tools in a single turn if the user asks for multiple things.
 - Sanity-check times against context. If a user says "remind me to go to bed at 12 PM", that's noon which doesn't make sense for bedtime -- ask if they meant 12 AM (midnight). Apply common sense to sleep, wake up, meals, etc.
-- When the user says just "12" without AM/PM, infer from context (bedtime = midnight, lunch = noon).`;
+- When the user says just "12" without AM/PM, infer from context (bedtime = midnight, lunch = noon).
+
+EXAMPLES:
+User: "Remind me to call mom tomorrow at 3pm"
+→ Call schedule_reminder(task="call mom", time="tomorrow at 3pm")
+→ Tell user it's done.
+
+User: "Change the call mom reminder to 5pm"
+→ Call update_reminder(task_query="call mom", new_time="5pm")
+→ Tell user it's updated.
+
+User: "What reminders do I have?"
+→ Call list_reminders()
+→ Relay the list to user.
+
+User: "Delete all my reminders"
+→ Ask user to confirm first, since this is destructive.
+→ If confirmed, call cancel_all_reminders().
+
+User: "Remind me to take medicine at 9am every day"
+→ Call schedule_recurring(task="take medicine", time="9am", interval="daily")
+
+User: "Remove the first reminder and remind me to study at 8pm tonight"
+→ Call cancel_reminder(target="1") AND schedule_reminder(task="study", time="8pm tonight") in the same turn.
+
+User: "Thanks!"
+→ Reply directly. No tool call needed.`;
 
 export async function runAgent(
   userMessage: string,
